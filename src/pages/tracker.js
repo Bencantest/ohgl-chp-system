@@ -1,10 +1,49 @@
-import { fac, DB } from '../services/state.js';
-import { ensurePageAccess } from '../services/rbac.js';
-import { updateReferralField, deleteReferralRecord } from '../services/dataService.js';
+import { fac, DB, currentProfile } from '../services/state.js';
+import { ensurePageAccess, normalizeRole } from '../services/rbac.js';
+import { updateReferralField, updateReferralSecureFull, deleteReferralRecord } from '../services/dataService.js';
 import { audit } from '../services/authService.js';
 import { sanitizeText } from '../utils/sanitize.js';
 import { setPrintHeader, docCode } from '../utils/helpers.js';
 import { integrations } from '../services/integrationService.js';
+import { refreshDB } from '../main.js';
+
+let trackerEdits = {};
+
+window.hasUnsavedReferralChanges = function() {
+  return Object.keys(trackerEdits).length > 0;
+};
+
+window.clearUnsavedReferralChanges = function() {
+  trackerEdits = {};
+  updateSaveButtonsState();
+};
+
+function updateSaveButtonsState() {
+  const role = normalizeRole(currentProfile?.role);
+  const isManualSaveRole = role === 'facility_manager' || role === 'technician' || role === 'facility_admin' || role === 'facility_officer' || role === 'clinician';
+  
+  const saveBtn = document.getElementById('tracker-save-btn');
+  const cancelBtn = document.getElementById('tracker-cancel-btn');
+  const badge = document.getElementById('tracker-unsaved-badge');
+  
+  const hasChanges = Object.keys(trackerEdits).length > 0;
+  
+  if (saveBtn) {
+    saveBtn.style.display = isManualSaveRole ? 'inline-flex' : 'none';
+    if (hasChanges) saveBtn.removeAttribute('disabled');
+    else saveBtn.setAttribute('disabled', 'true');
+  }
+  
+  if (cancelBtn) {
+    cancelBtn.style.display = isManualSaveRole ? 'inline-flex' : 'none';
+    if (hasChanges) cancelBtn.removeAttribute('disabled');
+    else cancelBtn.setAttribute('disabled', 'true');
+  }
+  
+  if (badge) {
+    badge.style.display = (isManualSaveRole && hasChanges) ? 'inline-flex' : 'none';
+  }
+}
 
 let trackerPage = 1;
 const PAGE_SIZE = 10;
@@ -120,6 +159,7 @@ export function renderTracker(nextPage = trackerPage) {
 
   document.getElementById('tracker-tbl').innerHTML = `
     <div class="reg-wrap">
+      <div id="tracker-alert"></div>
       <table class="reg-tbl">
         <thead><tr>
           <th>#</th><th>Slip No.</th><th>Date</th><th>Patient Name</th>
@@ -147,6 +187,7 @@ export function renderTracker(nextPage = trackerPage) {
         <div class="reg-sign-item"><span>Date:</span><div class="reg-sign-line"></div></div>
       </div>
     </div>`;
+  updateSaveButtonsState();
 }
 
 export async function updRef(facId, i, field, val) {
@@ -155,6 +196,7 @@ export async function updRef(facId, i, field, val) {
   if (!f || !f.referrals[i]) return;
   const r = f.referrals[i];
   r[field] = sanitizeText(val, 1000);
+  
   const map = {
     date: 'referral_date',
     patient: 'patient_name',
@@ -163,7 +205,7 @@ export async function updRef(facId, i, field, val) {
     priority: 'priority',
     sha: 'sha_registered',
     opd_status: 'opd_status',
-    workflow_status: 'workflow_status',
+    workflow_status: 'opd_status',
     received_by: 'received_by',
     file_no: 'file_no',
     sha_no: 'sha_no',
@@ -171,17 +213,38 @@ export async function updRef(facId, i, field, val) {
   };
   const dbField = map[field];
   if (dbField && r.db_id) {
-    const { error } = await updateReferralField(r.db_id, field, val);
-    if (error) {
-      alert(error.message);
-      return;
-    }
-    await audit('update', 'referrals', r.db_id, { field });
+    const role = normalizeRole(currentProfile?.role);
+    const isManualSaveRole = role === 'facility_manager' || role === 'technician' || role === 'facility_admin' || role === 'facility_officer' || role === 'clinician';
     
-    // Future-Ready Integration Sync (non-blocking)
-    if (field === 'workflow_status' && val === 'Completed') {
-      integrations.syncReferralToEMR(r).catch(err => console.error('[EMR Sync Error]', err));
-      integrations.pushAggregateToDHIS2({ event: 'referral_completion', id: r.id, facility: f.name }).catch(err => console.error('[DHIS2 Sync Error]', err));
+    let finalVal = val;
+    if (dbField === 'age') {
+      finalVal = val ? parseInt(val, 10) : null;
+    } else if (dbField === 'sha_registered') {
+      finalVal = (val === 'Yes' || val === true);
+    } else {
+      finalVal = sanitizeText(val, 1000);
+    }
+
+    if (isManualSaveRole) {
+      if (!trackerEdits[r.db_id]) {
+        trackerEdits[r.db_id] = {};
+      }
+      trackerEdits[r.db_id][dbField] = finalVal;
+      updateSaveButtonsState();
+    } else {
+      const payload = { [dbField]: finalVal };
+      const { error } = await updateReferralSecureFull(r.db_id, payload);
+      if (error) {
+        alert(error.message);
+        return;
+      }
+      await audit('update', 'referrals', r.db_id, payload);
+      
+      // Future-Ready Integration Sync (non-blocking)
+      if (dbField === 'opd_status' && val === 'Completed') {
+        integrations.syncReferralToEMR(r).catch(err => console.error('[EMR Sync Error]', err));
+        integrations.pushAggregateToDHIS2({ event: 'referral_completion', id: r.id, facility: f.name }).catch(err => console.error('[DHIS2 Sync Error]', err));
+      }
     }
   }
 }
@@ -202,4 +265,72 @@ export async function delRef(facId, i) {
   }
   f.referrals.splice(i, 1);
   renderTracker();
+}
+
+window.saveTrackerChanges = async function() {
+  if (!confirm('Are you sure you want to save these referral changes?')) return;
+  
+  const saveBtn = document.getElementById('tracker-save-btn');
+  const cancelBtn = document.getElementById('tracker-cancel-btn');
+  const spinner = document.getElementById('tracker-save-spinner');
+  
+  if (saveBtn) saveBtn.setAttribute('disabled', 'true');
+  if (cancelBtn) cancelBtn.setAttribute('disabled', 'true');
+  if (spinner) spinner.style.display = 'inline-block';
+  
+  let successCount = 0;
+  let errors = [];
+  
+  const editKeys = Object.keys(trackerEdits);
+  for (const refDbId of editKeys) {
+    const payload = trackerEdits[refDbId];
+    const { error } = await updateReferralSecureFull(refDbId, payload);
+    if (error) {
+      errors.push(`Referral ID ${refDbId}: ${error.message}`);
+    } else {
+      successCount++;
+      delete trackerEdits[refDbId];
+      await audit('update', 'referrals', refDbId, payload);
+      
+      if (payload.opd_status === 'Completed') {
+        const f = fac();
+        const r = f?.referrals.find(x => x.db_id === refDbId);
+        if (r && f) {
+          integrations.syncReferralToEMR(r).catch(err => console.error('[EMR Sync Error]', err));
+          integrations.pushAggregateToDHIS2({ event: 'referral_completion', id: r.id, facility: f.name }).catch(err => console.error('[DHIS2 Sync Error]', err));
+        }
+      }
+    }
+  }
+  
+  if (spinner) spinner.style.display = 'none';
+  
+  if (errors.length > 0) {
+    const msg = `Saved ${successCount} successfully. Failed to save ${errors.length} changes:\n` + errors.join('\n');
+    showTrackerAlert(msg, 'alert-e');
+    updateSaveButtonsState();
+  } else {
+    trackerEdits = {};
+    showTrackerAlert('All referral changes saved successfully.', 'alert-s');
+    await refreshDB();
+    renderTracker();
+  }
+};
+
+window.cancelTrackerChanges = function() {
+  if (!confirm('Are you sure you want to discard your unsaved changes?')) return;
+  trackerEdits = {};
+  refreshDB().then(() => {
+    renderTracker();
+  });
+};
+
+function showTrackerAlert(msg, kind = 'alert-s') {
+  const el = document.getElementById('tracker-alert');
+  if (el) {
+    el.innerHTML = `<div class="alert ${kind}"><i class="ti ${kind === 'alert-s' ? 'ti-circle-check' : 'ti-alert-circle'}"></i> ${msg}</div>`;
+    setTimeout(() => { if (el) el.innerHTML = ''; }, 6000);
+  } else {
+    alert(msg);
+  }
 }

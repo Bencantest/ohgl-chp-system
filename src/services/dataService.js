@@ -43,6 +43,13 @@ export function updateReferralField(referralId, field, value) {
   });
 }
 
+export function updateReferralSecureFull(referralId, payload) {
+  return sb.rpc('update_referral_secure_full', {
+    p_referral_id: referralId,
+    payload,
+  });
+}
+
 export function deleteReferralRecord(referralId) {
   return sb.from('referrals').delete().eq('id', referralId);
 }

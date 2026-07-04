@@ -236,6 +236,13 @@
         </select>
         <input class="fi" id="t-from" type="date" title="From date" onchange="renderTracker()" style="padding:6px 10px;font-size:12px;width:140px">
         <input class="fi" id="t-to" type="date" title="To date" onchange="renderTracker()" style="padding:6px 10px;font-size:12px;width:140px">
+        <span id="tracker-unsaved-badge" class="bdg" style="display:none; background-color:#D97706; color:#fff; align-items:center; justify-content:center; font-size:11px; padding:6px 10px; font-weight:600; border-radius:4px;"><i class="ti ti-alert-circle" style="margin-right:4px"></i> Unsaved Changes</span>
+        <button id="tracker-save-btn" class="btn btn-p" style="display:none; font-size:12px; padding:6px 12px; align-items:center; gap:6px;" onclick="saveTrackerChanges()" disabled>
+          <i class="ti ti-device-floppy"></i> Save Changes <span id="tracker-save-spinner" class="spinner" style="display:none; width:12px; height:12px; border-width:2px; margin-left:4px"></span>
+        </button>
+        <button id="tracker-cancel-btn" class="btn btn-s" style="display:none; font-size:12px; padding:6px 12px; align-items:center; gap:6px;" onclick="cancelTrackerChanges()" disabled>
+          <i class="ti ti-x"></i> Cancel Changes
+        </button>
       </div>
     </div>
     <div class="reg-wrap" id="tracker-tbl"></div>

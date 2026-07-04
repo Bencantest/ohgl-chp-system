@@ -133,6 +133,15 @@ export function updateHeader() {
 }
 
 export function showPage(id, el) {
+  if (window.hasUnsavedReferralChanges && window.hasUnsavedReferralChanges()) {
+    if (!confirm('You have unsaved referral changes. Are you sure you want to discard them and leave?')) {
+      return;
+    }
+    if (window.clearUnsavedReferralChanges) {
+      window.clearUnsavedReferralChanges();
+    }
+  }
+
   if (!canAccessPage(id)) {
     const fallback = getDefaultPage();
     if (fallback && fallback !== id) {
