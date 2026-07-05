@@ -3,3 +3,9 @@ node_modules/
 .vercel/
 config.local.js
 
+
+.env
+.env.*
+!.env.example
+config.production.js
+config.staging.js

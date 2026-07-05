@@ -80,10 +80,18 @@ Host the frontend on a secure static host and connect it to the Supabase project
 - [Workflow Engine](docs/workflows/WORKFLOW_ENGINE.md)
 - [Healthcare Workflows](docs/workflows/WORKFLOWS.md)
 - [Security Model](docs/security/SECURITY_MODEL.md)
+- [Security Hardening Audit](docs/security/SECURITY_HARDENING_AUDIT.md)
 - [API Contracts](docs/api/API_CONTRACTS.md)
 - [Database Guidelines](docs/database/DATABASE_GUIDELINES.md)
 - [Architecture Decision Records](docs/adr/README.md)
+- [Repository Structure](docs/architecture/REPOSITORY_STRUCTURE.md)
+- [Coding Standards](docs/architecture/CODING_STANDARDS.md)
 - [Contributor Guide](docs/architecture/CONTRIBUTING.md)
+- [Environment Strategy](docs/ENVIRONMENTS.md)
+- [Deployment Guide](deployments/DEPLOYMENT.md)
+- [Testing and QA](docs/TESTING_QA.md)
+- [Production Readiness Report](docs/PRODUCTION_READINESS_REPORT.md)
+- [Release Management](docs/releases/README.md)
 - [Roadmap](docs/architecture/ROADMAP.md)
 
 ## Roadmap
@@ -111,3 +119,6 @@ Planned:
 ## License
 
 License to be confirmed by the project owner before external distribution.
+
+
+

@@ -1,0 +1,26 @@
+name: Documentation Validation
+
+on:
+  push:
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - 'scripts/validate-docs.mjs'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - 'scripts/validate-docs.mjs'
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validate required docs, links, and Mermaid fences
+        run: node scripts/validate-docs.mjs

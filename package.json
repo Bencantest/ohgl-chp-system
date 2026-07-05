@@ -5,6 +5,17 @@
   "type": "module",
   "scripts": {
     "check:js": "node scripts/check-inline-js.mjs",
-    "validate:legacy-export": "node scripts/validate-local-export.mjs"
+    "check:syntax": "node scripts/check-js-syntax.mjs",
+    "validate:docs": "node scripts/validate-docs.mjs",
+    "validate:migrations": "node scripts/validate-migrations.mjs",
+    "validate:legacy-export": "node scripts/validate-local-export.mjs",
+    "test": "node scripts/run-tests.mjs",
+    "test:unit": "node scripts/run-tests.mjs tests/unit",
+    "test:integration": "node scripts/run-tests.mjs tests/integration",
+    "test:workflow": "node scripts/run-tests.mjs tests/workflow",
+    "test:security": "node scripts/run-tests.mjs tests/security",
+    "test:regression": "node scripts/run-tests.mjs tests/regression",
+    "test:performance": "node scripts/run-tests.mjs tests/performance",
+    "ci": "npm run check:syntax && npm run check:js && npm run validate:docs && npm run validate:migrations && npm test"
   }
 }
