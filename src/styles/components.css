@@ -1790,3 +1790,103 @@ textarea.fi {
     grid-template-columns: 1fr;
   }
 }
+
+/* WORKFLOW METADATA DIALOG */
+.wf-action-btn {
+  background: var(--W);
+  color: var(--TX);
+  border: 1.5px solid var(--BD);
+}
+.wf-action-primary { background: var(--T); color: #fff; border-color: var(--T); }
+.wf-action-secondary { background: var(--W); color: var(--TX); border-color: var(--BD); }
+.wf-action-success { background: #059669; color: #fff; border-color: #059669; }
+.wf-action-danger { background: var(--DG); color: #fff; border-color: var(--DG); }
+.wf-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  background: rgba(26, 26, 46, 0.58);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.wf-dialog {
+  width: min(560px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.24);
+}
+.wf-dialog-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--BD);
+}
+.wf-dialog-head strong {
+  color: var(--PD);
+  font-size: 15px;
+}
+.wf-dialog-head p,
+.wf-dialog-confirm {
+  margin: 4px 0 0;
+  color: var(--MU);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.wf-dialog-x {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--BD);
+  border-radius: 8px;
+  background: var(--W);
+  cursor: pointer;
+}
+.wf-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px 20px;
+}
+.wf-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wf-form-field span {
+  color: var(--MU);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.wf-dialog-error {
+  min-height: 16px;
+  color: #991B1B;
+  font-size: 12px;
+  font-weight: 600;
+}
+.wf-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--BD);
+}
+.wf-action-group {
+  margin-top: 8px;
+}
+.wf-action-group:first-of-type {
+  margin-top: 0;
+}
+.wf-action-category {
+  color: var(--MU);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}

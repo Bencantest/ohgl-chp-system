@@ -75,6 +75,14 @@ export function createReferralRecord(payload) {
 }
 
 
+
+export function getWorkflowActionDefinition(commandName) {
+  return sb.rpc('get_workflow_action_definition', { command_name: commandName });
+}
+
+export function getWorkflowReferenceData(commandName) {
+  return sb.rpc('get_workflow_reference_data', { command_name: commandName });
+}
 export function getAvailableReferralActions(referralId) {
   return sb.rpc('get_available_referral_actions', { referral_id: referralId });
 }
@@ -188,6 +196,7 @@ export function markAllNotificationsRead(userId, facilityId) {
   }
   return query;
 }
+
 
 
 

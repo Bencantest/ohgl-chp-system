@@ -60,9 +60,19 @@ export function renderSlaCard(sla = []) {
 export function renderWorkflowActionPanel(ref, actionState = {}, loading = false) {
   const actions = Array.isArray(actionState.available_actions) ? actionState.available_actions : [];
   if (loading) return `<div class="wf-card wf-actions"><div class="wf-card-title"><i class="ti ti-player-play"></i> Workflow Actions</div><div class="muted-mini">Loading available actions...</div></div>`;
-  const buttons = actions.map(a => `<button class="btn btn-sm ${a.enabled === false ? 'btn-s' : 'btn-t'}" ${a.enabled === false ? 'disabled' : ''} onclick="executeReferralWorkflowAction('${h(ref.db_id)}','${h(a.command)}')"><i class="ti ti-player-play"></i>${h(a.label || titleize(a.command))}</button>`).join('');
+  const groups = actions.reduce((acc, action) => {
+    const category = action.category || '';
+    if (!acc.has(category)) acc.set(category, []);
+    acc.get(category).push(action);
+    return acc;
+  }, new Map());
+  const buttons = [...groups.entries()].map(([category, groupActions]) => `<div class="wf-action-group">${category ? `<div class="wf-action-category">${h(category)}</div>` : ''}<div class="wf-action-row">${groupActions.map(a => {
+    const color = a.color ? ` wf-action-${h(a.color)}` : '';
+    const icon = a.icon ? `<i class="ti ti-${h(a.icon)}"></i>` : '';
+    return `<button class="btn btn-sm wf-action-btn${color}" ${a.enabled === false ? 'disabled' : ''} title="${h(a.description || '')}" onclick="executeReferralWorkflowAction('${h(ref.db_id)}','${h(a.command)}')">${icon}${h(a.label)}</button>`;
+  }).join('')}</div></div>`).join('');
   return `<div class="wf-card wf-actions"><div class="wf-card-title"><i class="ti ti-player-play"></i> Workflow Actions</div>
-    <div class="wf-action-row">${buttons || '<span class="muted-mini">No workflow actions are available.</span>'}</div></div>`;
+    ${buttons || '<span class="muted-mini">No workflow actions are available.</span>'}</div>`;
 }
 
 export function renderTimeline(events = []) {
@@ -93,5 +103,7 @@ export function renderWorkflowBundle(ref, actionState = {}, artifacts = {}, load
     </div>
   </div>`;
 }
+
+
 
 

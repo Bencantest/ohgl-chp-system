@@ -229,7 +229,7 @@ export async function executeReferralWorkflowAction(referralId, command) {
     if (result.cancelled) return;
     delete workflowActionCache[referralId];
     delete workflowArtifactCache[referralId];
-    showTrackerAlert(`${action.label || action.command} completed.`, 'alert-s');
+    showTrackerAlert(`${action.label} completed.`, 'alert-s');
     renderTracker();
   } catch (err) {
     showTrackerAlert(err.message || 'Workflow action failed.', 'alert-e');
@@ -367,6 +367,7 @@ function showTrackerAlert(msg, kind = 'alert-s') {
     alert(msg);
   }
 }
+
 
 
 
