@@ -5,7 +5,7 @@ import { audit } from '../services/authService.js';
 import { h, sanitizeText } from '../utils/sanitize.js';
 import { makeFac } from '../services/mappers.js';
 import { closeModal } from '../components/modal.js';
-import { updateHeader, showPage } from '../main.js';
+import { updateHeader, showPage, refreshDB } from '../main.js';
 import { renderDash } from './dashboard.js';
 
 export function loadSettings() {
@@ -139,6 +139,18 @@ function renderFacilityOptions(selected = '') {
     .join('');
 }
 
+function isApprovalDebugEnabled() {
+  return window.location.hostname === 'localhost'
+    || window.location.hostname === '127.0.0.1'
+    || sessionStorage.getItem('ochp_debug_approval') === '1';
+}
+
+function logApprovalDebug(label, details) {
+  if (isApprovalDebugEnabled()) {
+    console.debug(`[OCHP approval] ${label}`, details);
+  }
+}
+
 function renderRoleOptions(selected = '') {
   return IAM_ROLES
     .map(role => `<option value="${h(role)}" ${role === selected ? 'selected' : ''}>${h(iamRoleLabel(role))}</option>`)
@@ -157,7 +169,7 @@ function renderIamUserRows(users, isPending) {
       <td>${h(user.chp_code_requested || '-')}</td>
       <td>${user.created_at ? h(new Date(user.created_at).toLocaleString()) : '-'}</td>
       <td style="min-width:260px">
-        ${isPending ? `<select class="fi" id="iam-fac-${h(user.id)}" style="margin-bottom:6px">${renderFacilityOptions(user.facility_id)}</select><button class="btn btn-p btn-sm" onclick="iamApproveUser('${h(user.id)}')"><i class="ti ti-check"></i> Approve</button> <button class="btn btn-d btn-sm" onclick="iamRejectUser('${h(user.id)}')"><i class="ti ti-x"></i> Reject</button>` : ''}
+        ${isPending ? `<select class="fi" id="iam-fac-${h(user.id)}" style="margin-bottom:6px" required>${renderFacilityOptions(user.facility_id)}</select><button class="btn btn-p btn-sm" onclick="iamApproveUser('${h(user.id)}')"><i class="ti ti-check"></i> Approve</button> <button class="btn btn-d btn-sm" onclick="iamRejectUser('${h(user.id)}')"><i class="ti ti-x"></i> Reject</button>` : ''}
         ${!isPending ? `<select class="fi" id="iam-role-${h(user.id)}" style="margin-bottom:6px">${renderRoleOptions(user.role)}</select><select class="fi" id="iam-fac-${h(user.id)}" style="margin-bottom:6px">${renderFacilityOptions(user.facility_id)}</select><button class="btn btn-s btn-sm" onclick="iamChangeRole('${h(user.id)}')">Role</button> <button class="btn btn-s btn-sm" onclick="iamAssignFacility('${h(user.id)}')">Facility</button> <button class="btn btn-s btn-sm" onclick="iamSuspendUser('${h(user.id)}')">Suspend</button> <button class="btn btn-s btn-sm" onclick="iamReactivateUser('${h(user.id)}')">Reactivate</button> <button class="btn btn-d btn-sm" onclick="iamDeactivateUser('${h(user.id)}')">Deactivate</button>` : ''}
       </td>
     </tr>`).join('');
@@ -227,11 +239,43 @@ export async function adminUserWizard() {
 }
 
 export async function iamApproveUser(userId) {
-  const facilityId = document.getElementById(`iam-fac-${userId}`)?.value || '';
-  if (!facilityId) return iamAlert('Select a facility before approving this user.');
-  const { error } = await approveUserSecure(userId, facilityId, 'Approved from IAM admin UI');
-  if (error) return iamAlert(error.message);
-  await refreshIamPanel();
+  const selectedUser = iamUsers.find(user => user.id === userId) || null;
+  const facilitySelect = document.getElementById(`iam-fac-${userId}`);
+  const facilityId = facilitySelect?.value || '';
+  const payload = {
+    target_user_id: userId,
+    facility_id: facilityId,
+    reason: 'Approved from IAM admin UI',
+  };
+
+  logApprovalDebug('selected user', selectedUser || { id: userId });
+  logApprovalDebug('selected facility', { facility_id: facilityId });
+  logApprovalDebug('payload sent', payload);
+
+  if (!payload.target_user_id) {
+    iamAlert('Select a valid user before approving.');
+    return;
+  }
+  if (!payload.facility_id) {
+    if (facilitySelect) facilitySelect.focus();
+    iamAlert('Select a facility before approving this user.');
+    return;
+  }
+
+  const { data, error } = await approveUserSecure(payload.target_user_id, payload.facility_id, payload.reason);
+  logApprovalDebug('RPC response', data);
+  logApprovalDebug('RPC error', error);
+
+  if (error) {
+    iamAlert(error.message || 'Approval failed.');
+    return;
+  }
+
+  iamAlert('User approved successfully.', 'alert-s');
+  await Promise.all([
+    refreshIamPanel(),
+    refreshDB(),
+  ]);
 }
 
 export async function iamRejectUser(userId) {
