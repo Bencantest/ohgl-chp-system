@@ -32,33 +32,33 @@ AS $$
       ELSE p_role
     END AS role_name
   ), base_permissions AS (
-    SELECT rp.permission_key
+    SELECT rp.permission
     FROM public.role_permissions rp
     JOIN canonical_role cr ON rp.role::text = cr.role_name
   ), compatibility_permissions AS (
-    SELECT permission_key FROM base_permissions
+    SELECT permission FROM base_permissions
     UNION
     SELECT '*' WHERE (SELECT role_name FROM canonical_role) = 'super_admin'
     UNION
-    SELECT 'referral:read' WHERE EXISTS (SELECT 1 FROM base_permissions WHERE permission_key = 'referral:read_facility')
+    SELECT 'referral:read' WHERE EXISTS (SELECT 1 FROM base_permissions WHERE permission = 'referral:read_facility')
     UNION
-    SELECT 'referral:update' WHERE EXISTS (SELECT 1 FROM base_permissions WHERE permission_key = 'referral:update_facility')
+    SELECT 'referral:update' WHERE EXISTS (SELECT 1 FROM base_permissions WHERE permission = 'referral:update_facility')
     UNION
-    SELECT 'report:read' WHERE EXISTS (SELECT 1 FROM base_permissions WHERE permission_key IN ('report:read_facility', 'report:read_system'))
+    SELECT 'report:read' WHERE EXISTS (SELECT 1 FROM base_permissions WHERE permission IN ('report:read_facility', 'report:read_system'))
     UNION
-    SELECT 'patient:read' WHERE EXISTS (SELECT 1 FROM base_permissions WHERE permission_key IN ('facility:manage', 'referral:read_facility'))
+    SELECT 'patient:read' WHERE EXISTS (SELECT 1 FROM base_permissions WHERE permission IN ('facility:manage', 'referral:read_facility'))
     UNION
-    SELECT 'patient:write' WHERE EXISTS (SELECT 1 FROM base_permissions WHERE permission_key = 'facility:manage')
+    SELECT 'patient:write' WHERE EXISTS (SELECT 1 FROM base_permissions WHERE permission = 'facility:manage')
     UNION
-    SELECT 'chp:read' WHERE EXISTS (SELECT 1 FROM base_permissions WHERE permission_key = 'facility:manage')
+    SELECT 'chp:read' WHERE EXISTS (SELECT 1 FROM base_permissions WHERE permission = 'facility:manage')
     UNION
-    SELECT 'chp:create' WHERE EXISTS (SELECT 1 FROM base_permissions WHERE permission_key = 'facility:manage')
+    SELECT 'chp:create' WHERE EXISTS (SELECT 1 FROM base_permissions WHERE permission = 'facility:manage')
     UNION
-    SELECT 'chp:update' WHERE EXISTS (SELECT 1 FROM base_permissions WHERE permission_key = 'facility:manage')
+    SELECT 'chp:update' WHERE EXISTS (SELECT 1 FROM base_permissions WHERE permission = 'facility:manage')
     UNION
-    SELECT 'chp:delete' WHERE EXISTS (SELECT 1 FROM base_permissions WHERE permission_key = 'facility:manage')
+    SELECT 'chp:delete' WHERE EXISTS (SELECT 1 FROM base_permissions WHERE permission = 'facility:manage')
   )
-  SELECT coalesce(array_agg(DISTINCT permission_key ORDER BY permission_key), ARRAY[]::text[])
+  SELECT coalesce(array_agg(DISTINCT permission ORDER BY permission), ARRAY[]::text[])
   FROM compatibility_permissions
 $$;
 
@@ -212,3 +212,4 @@ BEGIN
   RETURN new;
 END;
 $$;
+

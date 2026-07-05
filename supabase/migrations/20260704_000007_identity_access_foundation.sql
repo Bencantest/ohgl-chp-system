@@ -56,12 +56,10 @@ CREATE TABLE IF NOT EXISTS permissions (
 );
 
 CREATE TABLE IF NOT EXISTS role_permissions (
+  id bigserial PRIMARY KEY,
   role app_role NOT NULL,
-  permission_key text NOT NULL REFERENCES permissions(key) ON DELETE CASCADE,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY (role, permission_key),
-  CONSTRAINT role_permissions_role_canonical_chk
-    CHECK (role::text IN ('super_admin', 'facility_manager', 'facility_officer', 'clinician', 'chp'))
+  permission text NOT NULL REFERENCES permissions(key) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS user_access_audit (
@@ -110,7 +108,7 @@ ON CONFLICT (key) DO UPDATE SET
   description = excluded.description,
   permission_group = excluded.permission_group;
 
-INSERT INTO role_permissions (role, permission_key) VALUES
+INSERT INTO role_permissions (role, permission) SELECT v.role::app_role, v.permission FROM (VALUES
   ('super_admin', 'user:read'),
   ('super_admin', 'user:approve'),
   ('super_admin', 'user:reject'),
@@ -149,7 +147,13 @@ INSERT INTO role_permissions (role, permission_key) VALUES
   ('chp', 'facility:read'),
   ('chp', 'referral:create'),
   ('chp', 'referral:read_own')
-ON CONFLICT (role, permission_key) DO NOTHING;
+) AS v(role, permission)
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM role_permissions rp
+  WHERE rp.role = v.role::app_role
+    AND rp.permission = v.permission
+);
 
 CREATE INDEX IF NOT EXISTS idx_users_approval_created
   ON users(approval_status, created_at DESC);
@@ -158,10 +162,12 @@ CREATE INDEX IF NOT EXISTS idx_users_role_facility
   ON users(role, facility_id);
 
 CREATE INDEX IF NOT EXISTS idx_role_permissions_permission
-  ON role_permissions(permission_key);
+  ON role_permissions(permission);
 
 CREATE INDEX IF NOT EXISTS idx_user_access_audit_target_created
   ON user_access_audit(target_user_id, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_user_access_audit_actor_created
   ON user_access_audit(actor_id, created_at DESC);
+
+
