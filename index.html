@@ -25,6 +25,31 @@
       <div class="login-body">
         <div id="auth-alert"></div>
         <form id="auth-form" onsubmit="login(event)">
+          <div class="auth-mode-row" style="display:flex;gap:8px;margin-bottom:16px">
+            <button class="btn btn-s btn-sm" type="button" id="auth-mode-login" onclick="setAuthMode('login')">Sign in</button>
+            <button class="btn btn-s btn-sm" type="button" id="auth-mode-register" onclick="setAuthMode('register')">Register</button>
+          </div>
+          <div class="fg auth-register-field" style="display:none">
+            <label class="fl" for="auth-full-name">Full Name</label>
+            <div class="input-with-icon">
+              <i class="ti ti-user" aria-hidden="true"></i>
+              <input class="fi" id="auth-full-name" type="text" autocomplete="name" placeholder="Your full name">
+            </div>
+          </div>
+          <div class="fg auth-register-field" style="display:none;margin-top:16px">
+            <label class="fl" for="auth-phone">Phone Number</label>
+            <div class="input-with-icon">
+              <i class="ti ti-phone" aria-hidden="true"></i>
+              <input class="fi" id="auth-phone" type="tel" autocomplete="tel" placeholder="+254...">
+            </div>
+          </div>
+          <div class="fg auth-register-field" style="display:none;margin-top:16px">
+            <label class="fl" for="auth-chp-code">CHP Code <span style="font-weight:400;color:var(--MU)">(optional)</span></label>
+            <div class="input-with-icon">
+              <i class="ti ti-id-badge" aria-hidden="true"></i>
+              <input class="fi" id="auth-chp-code" type="text" autocomplete="off" placeholder="Optional CHP code">
+            </div>
+          </div>
           <div class="fg">
             <label class="fl" for="auth-email">Email Address</label>
             <div class="input-with-icon">
@@ -366,11 +391,12 @@
   <div class="card">
     <div class="ch"><span class="ct"><i class="ti ti-database-export"></i> Data management</span></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <button class="btn btn-p btn-sm" id="user-admin-btn" style="display:none" onclick="adminUserWizard()"><i class="ti ti-user-plus"></i> User profile wizard</button>
+      <button class="btn btn-p btn-sm" id="user-admin-btn" style="display:none" onclick="adminUserWizard()"><i class="ti ti-shield-lock"></i> IAM Admin</button>
       <button class="btn btn-s btn-sm" onclick="exportJSON()"><i class="ti ti-download"></i> Export all data (.json)</button>
       <label class="btn btn-s btn-sm" style="cursor:pointer"><i class="ti ti-upload"></i> Import backup<input type="file" accept=".json" style="display:none" onchange="importJSON(event)"></label>
     </div>
   </div>
+  <div id="iam-admin-panel" class="reg-wrap" style="display:none;margin-top:16px"></div>
 </div>
 
 </div><!-- /main -->
@@ -431,6 +457,9 @@
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>
+
+
+
 
 
 

@@ -1,33 +1,38 @@
 export const ROLE_PERMS = {
   super_admin: ['*'],
-  facility_admin: [
+  facility_manager: [
     'facility:manage',
     'facility:read',
     'patient:read',
     'patient:write',
-    'referral:*',
-    'chp:*',
-    'report:read',
-    'group:read',
+    'referral:read_facility',
+    'report:read_facility',
+    'report:export',
+    'settings:manage_facility',
   ],
   facility_officer: [
     'facility:read',
     'patient:read',
-    'referral:create',
-    'referral:read',
-    'referral:update',
-    'report:read',
+    'referral:read_facility',
+    'referral:update_facility',
+  ],
+  clinician: [
+    'facility:read',
+    'patient:read',
+    'referral:read_facility',
+    'referral:update_facility',
+    'referral:complete',
   ],
   chp: ['facility:read', 'referral:create', 'referral:read_own'],
 };
 
 export const ROLE_LABELS = {
   super_admin: 'Super Admin',
-  facility_admin: 'Facility Administrator',
+  facility_manager: 'Facility Manager',
   facility_officer: 'Facility Officer',
+  clinician: 'Clinician',
   chp: 'CHP',
 };
-
 export const DEFAULT_FACS = [
   { name: 'Oasis Specialist Hospital', location: 'Kisii', level: 'Level 5', email: 'kisii@oasishealthcaregroup.com', phone: '+254 700 000 001' },
   { name: 'Oasis Doctors Siaya', location: 'Siaya', level: 'Level 4', email: 'siaya@oasishealthcaregroup.com', phone: '+254 748 450 548' },
@@ -50,3 +55,4 @@ export const CATS = [
 export const CAT_COLORS = ['#6B3FA0', '#00A896', '#1E40AF', '#BE185D', '#D97706', '#C62828'];
 export const CAT_ICONS = ['<i class="ti ti-heart"></i>', '+', '<i class="ti ti-stethoscope"></i>', '~', '<i class="ti ti-baby-carriage"></i>', '!'];
 export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+

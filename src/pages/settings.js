@@ -1,8 +1,8 @@
 import { fac, DB, setDB } from '../services/state.js';
 import { ensurePageAccess, hasPerm } from '../services/rbac.js';
-import { updateFacilityRecord, deleteFacilityRecord, createFacilityRecord, upsertUserProfile } from '../services/dataService.js';
+import { updateFacilityRecord, deleteFacilityRecord, createFacilityRecord, listUsersSecure, approveUserSecure, rejectUserSecure, suspendUserSecure, reactivateUserSecure, deactivateUserSecure, assignUserFacilitySecure, changeUserRoleSecure, fetchUserAccessAudit } from '../services/dataService.js';
 import { audit } from '../services/authService.js';
-import { sanitizeText } from '../utils/sanitize.js';
+import { h, sanitizeText } from '../utils/sanitize.js';
 import { makeFac } from '../services/mappers.js';
 import { closeModal } from '../components/modal.js';
 import { updateHeader, showPage } from '../main.js';
@@ -24,7 +24,7 @@ export function loadSettings() {
   document.getElementById('s-compiler').value = f.compiler || '';
   document.getElementById('s-coic').value = f.coic || '';
   const userBtn = document.getElementById('user-admin-btn');
-  if (userBtn) userBtn.style.display = hasPerm('user:manage') ? 'inline-flex' : 'none';
+  if (userBtn) userBtn.style.display = hasPerm('*') ? 'inline-flex' : 'none';
 }
 
 export async function saveSettings() {
@@ -120,51 +120,171 @@ export async function addFacility() {
 }
 
 
+const IAM_ROLES = ['super_admin', 'facility_manager', 'facility_officer', 'clinician', 'chp'];
+let iamUsers = [];
+let iamAudit = [];
+
+function iamRoleLabel(role) {
+  return String(role || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function getFacilityLabel(facilityId) {
+  const found = (DB.facilities || []).find(f => f.id === facilityId);
+  return found ? `${found.location} - ${found.name}` : (facilityId || '-');
+}
+
+function renderFacilityOptions(selected = '') {
+  return `<option value="">Select facility...</option>` + (DB.facilities || [])
+    .map(f => `<option value="${h(f.id)}" ${f.id === selected ? 'selected' : ''}>${h(f.location)} - ${h(f.name)}</option>`)
+    .join('');
+}
+
+function renderRoleOptions(selected = '') {
+  return IAM_ROLES
+    .map(role => `<option value="${h(role)}" ${role === selected ? 'selected' : ''}>${h(iamRoleLabel(role))}</option>`)
+    .join('');
+}
+
+function renderIamUserRows(users, isPending) {
+  if (!users.length) return `<tr><td colspan="8" style="text-align:center;color:var(--MU)">No users found.</td></tr>`;
+  return users.map(user => `
+    <tr>
+      <td><strong>${h(user.full_name || '-')}</strong><br><span class="muted-mini">${h(user.email || '')}</span></td>
+      <td>${h(user.phone || '-')}</td>
+      <td><span class="bdg bdg-t">${h(user.approval_status || '-')}</span></td>
+      <td>${h(iamRoleLabel(user.role))}</td>
+      <td>${h(getFacilityLabel(user.facility_id))}</td>
+      <td>${h(user.chp_code_requested || '-')}</td>
+      <td>${user.created_at ? h(new Date(user.created_at).toLocaleString()) : '-'}</td>
+      <td style="min-width:260px">
+        ${isPending ? `<select class="fi" id="iam-fac-${h(user.id)}" style="margin-bottom:6px">${renderFacilityOptions(user.facility_id)}</select><button class="btn btn-p btn-sm" onclick="iamApproveUser('${h(user.id)}')"><i class="ti ti-check"></i> Approve</button> <button class="btn btn-d btn-sm" onclick="iamRejectUser('${h(user.id)}')"><i class="ti ti-x"></i> Reject</button>` : ''}
+        ${!isPending ? `<select class="fi" id="iam-role-${h(user.id)}" style="margin-bottom:6px">${renderRoleOptions(user.role)}</select><select class="fi" id="iam-fac-${h(user.id)}" style="margin-bottom:6px">${renderFacilityOptions(user.facility_id)}</select><button class="btn btn-s btn-sm" onclick="iamChangeRole('${h(user.id)}')">Role</button> <button class="btn btn-s btn-sm" onclick="iamAssignFacility('${h(user.id)}')">Facility</button> <button class="btn btn-s btn-sm" onclick="iamSuspendUser('${h(user.id)}')">Suspend</button> <button class="btn btn-s btn-sm" onclick="iamReactivateUser('${h(user.id)}')">Reactivate</button> <button class="btn btn-d btn-sm" onclick="iamDeactivateUser('${h(user.id)}')">Deactivate</button>` : ''}
+      </td>
+    </tr>`).join('');
+}
+
+function renderIamAuditRows() {
+  if (!iamAudit.length) return `<tr><td colspan="5" style="text-align:center;color:var(--MU)">No access audit events found.</td></tr>`;
+  return iamAudit.slice(0, 15).map(evt => `
+    <tr>
+      <td>${evt.created_at ? h(new Date(evt.created_at).toLocaleString()) : '-'}</td>
+      <td>${h(evt.action || '-')}</td>
+      <td><code>${h(evt.target_user_id || '-')}</code></td>
+      <td>${h(evt.reason || '-')}</td>
+      <td><code>${h(JSON.stringify(evt.new_value || {}))}</code></td>
+    </tr>`).join('');
+}
+
+function renderIamPanel() {
+  const panel = document.getElementById('iam-admin-panel');
+  if (!panel) return;
+  const pending = iamUsers.filter(u => u.approval_status === 'pending');
+  const allUsers = iamUsers.filter(u => u.approval_status !== 'pending');
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div id="iam-alert"></div>
+    <div class="ch"><span class="ct"><i class="ti ti-shield-lock"></i> Identity & Access Management</span></div>
+    <h4 style="margin:12px 0 8px">Pending Approval Queue</h4>
+    <div style="overflow-x:auto"><table class="reg-tbl"><thead><tr><th>User</th><th>Phone</th><th>Status</th><th>Role</th><th>Facility</th><th>CHP Code</th><th>Registered</th><th>Actions</th></tr></thead><tbody>${renderIamUserRows(pending, true)}</tbody></table></div>
+    <h4 style="margin:18px 0 8px">User Directory</h4>
+    <div style="overflow-x:auto"><table class="reg-tbl"><thead><tr><th>User</th><th>Phone</th><th>Status</th><th>Role</th><th>Facility</th><th>CHP Code</th><th>Created</th><th>Actions</th></tr></thead><tbody>${renderIamUserRows(allUsers, false)}</tbody></table></div>
+    <h4 style="margin:18px 0 8px">Recent Access Audit</h4>
+    <div style="overflow-x:auto"><table class="reg-tbl"><thead><tr><th>Time</th><th>Action</th><th>Target User</th><th>Reason</th><th>New Value</th></tr></thead><tbody>${renderIamAuditRows()}</tbody></table></div>`;
+}
+
+function iamAlert(message, kind = 'alert-e') {
+  const el = document.getElementById('iam-alert');
+  if (el) el.innerHTML = `<div class="alert ${kind}">${h(message)}</div>`;
+}
+
+async function refreshIamPanel() {
+  const [{ data: users, error: usersErr }, { data: auditRows, error: auditErr }] = await Promise.all([
+    listUsersSecure(),
+    fetchUserAccessAudit(50),
+  ]);
+  if (usersErr) throw usersErr;
+  if (auditErr) console.warn('IAM audit load failed', auditErr);
+  iamUsers = users || [];
+  iamAudit = auditRows || [];
+  renderIamPanel();
+}
+
+function promptReason(action) {
+  const reason = prompt(`Reason required to ${action}:`);
+  return reason ? sanitizeText(reason, 500) : '';
+}
+
 export async function adminUserWizard() {
-  if (!hasPerm('user:manage')) {
-    alert('Only super admins can manage user profiles.');
+  if (!hasPerm('*')) {
+    alert('Only Super Admin can access IAM administration.');
     return;
   }
-
-  const id = prompt('Auth user UUID (from Supabase Auth):');
-  if (!id) return;
-  const fullName = prompt('Full name:');
-  if (!fullName) return;
-  const email = prompt('Email address:');
-  if (!email) return;
-  const phone = prompt('Phone number (optional):') || '';
-  const role = prompt('Role (super_admin, facility_admin, facility_officer, chp):', 'chp');
-  if (!role) return;
-  const normalizedRole = ['super_admin', 'facility_admin', 'facility_officer', 'chp'].includes(role) ? role : null;
-  if (!normalizedRole) {
-    alert('Invalid role. Use one of: super_admin, facility_admin, facility_officer, chp.');
-    return;
+  try {
+    await refreshIamPanel();
+  } catch (err) {
+    alert(err.message || 'IAM users could not be loaded.');
   }
-  const facilityId = normalizedRole === 'super_admin' ? null : prompt('Facility UUID (required for non-super-admin roles):');
-  if (normalizedRole !== 'super_admin' && !facilityId) {
-    alert('A facility UUID is required for non-super-admin roles.');
-    return;
-  }
-  const active = confirm('Should this profile be active?');
+}
 
-  const payload = {
-    id: id.trim(),
-    full_name: sanitizeText(fullName, 160),
-    email: sanitizeText(email, 160),
-    phone: sanitizeText(phone, 40),
-    role: normalizedRole,
-    facility_id: normalizedRole === 'super_admin' ? null : facilityId.trim(),
-    active,
-  };
+export async function iamApproveUser(userId) {
+  const facilityId = document.getElementById(`iam-fac-${userId}`)?.value || '';
+  if (!facilityId) return iamAlert('Select a facility before approving this user.');
+  const { error } = await approveUserSecure(userId, facilityId, 'Approved from IAM admin UI');
+  if (error) return iamAlert(error.message);
+  await refreshIamPanel();
+}
 
-  const { error } = await upsertUserProfile(payload);
-  if (error) {
-    alert(error.message);
-    return;
-  }
+export async function iamRejectUser(userId) {
+  const reason = promptReason('reject this user');
+  if (!reason) return iamAlert('Rejection reason is required.');
+  const { error } = await rejectUserSecure(userId, reason);
+  if (error) return iamAlert(error.message);
+  await refreshIamPanel();
+}
 
-  await audit('upsert', 'users', payload.id, { role: payload.role, active: payload.active });
-  alert('User profile saved.');
+export async function iamSuspendUser(userId) {
+  const reason = promptReason('suspend this user');
+  if (!reason) return iamAlert('Suspension reason is required.');
+  const { error } = await suspendUserSecure(userId, reason);
+  if (error) return iamAlert(error.message);
+  await refreshIamPanel();
+}
+
+export async function iamReactivateUser(userId) {
+  const reason = promptReason('reactivate this user');
+  if (!reason) return iamAlert('Reactivation reason is required.');
+  const { error } = await reactivateUserSecure(userId, reason);
+  if (error) return iamAlert(error.message);
+  await refreshIamPanel();
+}
+
+export async function iamDeactivateUser(userId) {
+  const reason = promptReason('deactivate this user');
+  if (!reason) return iamAlert('Deactivation reason is required.');
+  if (!confirm('Deactivate this user? This should be used for long-term access removal.')) return;
+  const { error } = await deactivateUserSecure(userId, reason);
+  if (error) return iamAlert(error.message);
+  await refreshIamPanel();
+}
+
+export async function iamAssignFacility(userId) {
+  const facilityId = document.getElementById(`iam-fac-${userId}`)?.value || '';
+  if (!facilityId) return iamAlert('Select a facility before assigning this user.');
+  const reason = promptReason('change this facility assignment');
+  if (!reason) return iamAlert('Facility change reason is required.');
+  const { error } = await assignUserFacilitySecure(userId, facilityId, reason);
+  if (error) return iamAlert(error.message);
+  await refreshIamPanel();
+}
+
+export async function iamChangeRole(userId) {
+  const role = document.getElementById(`iam-role-${userId}`)?.value || '';
+  if (!IAM_ROLES.includes(role)) return iamAlert('Select a valid canonical role.');
+  const reason = promptReason('change this user role');
+  if (!reason) return iamAlert('Role change reason is required.');
+  const { error } = await changeUserRoleSecure(userId, role, reason);
+  if (error) return iamAlert(error.message);
+  await refreshIamPanel();
 }
 
 export function exportJSON() {
@@ -257,3 +377,9 @@ export function importJSON(event) {
   };
   reader.readAsText(file);
 }
+
+
+
+
+
+

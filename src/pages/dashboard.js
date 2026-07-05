@@ -29,7 +29,7 @@ export async function renderDash() {
   // Render role-specific dashboard
   if (role === 'super_admin') {
     await renderSuperAdminDash();
-  } else if (role === 'facility_admin') {
+  } else if (role === 'facility_manager') {
     renderFacilityAdminDash(f);
   } else if (role === 'facility_officer' || role === 'clinician') {
     renderFacilityOfficerDash(f);
@@ -349,4 +349,5 @@ async function renderSuperAdminDash() {
     `;
   }
 }
+
 

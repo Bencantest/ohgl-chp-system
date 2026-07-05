@@ -1,6 +1,6 @@
 import { sb, requireSupabase } from './supabaseClient.js';
 import { fetchUserProfile, writeAuditLog } from './dataService.js';
-import { sanitizeText } from '../utils/sanitize.js';
+import { h, sanitizeText } from '../utils/sanitize.js';
 import { hasPerm, getAllowedPages, getDefaultPage, getRoleLabel, renderAccessDenied } from './rbac.js';
 import { currentUser, currentProfile, setCurrentUser, setCurrentProfile, DB, setDB } from './state.js';
 import { checkRateLimit } from '../utils/rateLimiter.js';
@@ -10,6 +10,41 @@ import { checkRateLimit } from '../utils/rateLimiter.js';
 import { showAuth, refreshDB, authAlert, showPage } from '../main.js';
 
 export { hasPerm } from "./rbac.js";
+
+let authMode = 'login';
+let dashboardPageHTML = null;
+
+function setSubmitLoading(loading) {
+  const btn = document.getElementById('auth-submit-btn');
+  const btnText = document.getElementById('auth-btn-text');
+  const spinner = document.getElementById('auth-btn-spinner');
+  if (btn) btn.disabled = loading;
+  if (btnText) btnText.style.display = loading ? 'none' : 'inline-flex';
+  if (spinner) spinner.style.display = loading ? 'inline-block' : 'none';
+}
+
+export function setAuthMode(mode) {
+  authMode = mode === 'register' ? 'register' : 'login';
+  document.querySelectorAll('.auth-register-field').forEach(el => {
+    el.style.display = authMode === 'register' ? 'block' : 'none';
+  });
+  const submitText = document.getElementById('auth-btn-text');
+  const resetBtn = document.getElementById('auth-reset-btn');
+  const password = document.getElementById('auth-password');
+  const fullName = document.getElementById('auth-full-name');
+  const phone = document.getElementById('auth-phone');
+  const loginBtn = document.getElementById('auth-mode-login');
+  const registerBtn = document.getElementById('auth-mode-register');
+  if (submitText) submitText.innerHTML = authMode === 'register' ? '<i class="ti ti-user-plus" aria-hidden="true"></i> Register' : '<i class="ti ti-login" aria-hidden="true"></i> Sign in';
+  if (resetBtn) resetBtn.style.display = authMode === 'register' ? 'none' : 'inline-flex';
+  if (password) password.autocomplete = authMode === 'register' ? 'new-password' : 'current-password';
+  if (fullName) fullName.required = authMode === 'register';
+  if (phone) phone.required = authMode === 'register';
+  if (loginBtn) loginBtn.classList.toggle('btn-p', authMode === 'login');
+  if (registerBtn) registerBtn.classList.toggle('btn-p', authMode === 'register');
+  const alertEl = document.getElementById('auth-alert');
+  if (alertEl) alertEl.innerHTML = '';
+}
 
 function setNavVisibility(pageId, visible) {
   const el = document.getElementById(`nav-${pageId}`);
@@ -26,6 +61,33 @@ function showLockedAccess(message) {
   renderAccessDenied('page-dashboard', message);
 }
 
+function showLifecycleAccess(status, profile) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nt').forEach(t => t.classList.remove('active'));
+  ['dashboard', 'new_referral', 'my_referrals', 'tracker', 'directory', 'report', 'group', 'settings', 'audit'].forEach(pageId => {
+    setNavVisibility(pageId, false);
+  });
+  const page = document.getElementById('page-dashboard');
+  if (!page) return;
+  if (dashboardPageHTML === null) dashboardPageHTML = page.innerHTML;
+  page.classList.add('active');
+  const details = {
+    pending: ['Awaiting Approval', 'Your registration has been submitted and is awaiting Super Admin review.'],
+    rejected: ['Registration Rejected', 'Your registration was not approved. Contact the administrator if you believe this needs review.'],
+    suspended: ['Account Suspended', 'Your account is temporarily suspended. Contact the administrator for assistance.'],
+    deactivated: ['Account Deactivated', 'Your account has been deactivated. Contact the administrator for assistance.'],
+  };
+  const [title, body] = details[status] || ['Access Restricted', 'Your account is not currently approved for application access.'];
+  page.innerHTML = `<div class="card" style="max-width:720px;margin:32px auto;padding:24px">
+    <div class="ch"><span class="ct"><i class="ti ti-shield-lock"></i> ${h(title)}</span></div>
+    <div style="padding:18px">
+      <div class="alert alert-i"><strong>Status:</strong> ${h(status || 'unknown')}</div>
+      <p style="margin:14px 0;color:var(--TX)">${h(body)}</p>
+      <p class="muted-mini" style="font-size:12px;margin-bottom:18px">Signed in as ${h(profile?.full_name || profile?.email || 'current user')}. For support, contact your Oasis Community Health Platform administrator.</p>
+      <button class="btn btn-p" onclick="logout()"><i class="ti ti-logout"></i> Logout</button>
+    </div>
+  </div>`;
+}
 export function applyPermissionsUI() {
   if (!currentProfile) return;
   const allowed = new Set(getAllowedPages(currentProfile));
@@ -80,17 +142,26 @@ export async function bootstrapSession(session) {
   setCurrentProfile(displayProfile);
   showAuth(true);
   document.getElementById('current-user').textContent = `${displayProfile.full_name || session.user.email} - ${getRoleLabel(displayProfile.role)}`;
-  applyPermissionsUI();
 
   if (!profile) {
-    showLockedAccess('Your account is signed in but has not been provisioned with an application role yet. Contact a Super Admin to assign access.');
+    showLockedAccess('Your account is signed in but has not been provisioned with an application profile yet. Contact a Super Admin for support.');
+    return;
+  }
+
+  const lifecycleStatus = profile.approval_status || (profile.active ? 'approved' : 'suspended');
+  if (lifecycleStatus !== 'approved') {
+    showLifecycleAccess(lifecycleStatus, profile);
     return;
   }
 
   if (!profile.active) {
-    showLockedAccess('Your account is disabled. Contact a Super Admin to restore access.');
+    showLifecycleAccess('suspended', profile);
     return;
   }
+
+  const dashboardPage = document.getElementById('page-dashboard');
+  if (dashboardPage && dashboardPageHTML !== null) dashboardPage.innerHTML = dashboardPageHTML;
+  applyPermissionsUI();
 
   const defaultPage = getDefaultPage(profile);
   if (!defaultPage) {
@@ -109,7 +180,51 @@ export async function bootstrapSession(session) {
   }
 }
 
+export async function register(e) {
+  e.preventDefault();
+
+  if (!checkRateLimit('register', 3, 60000)) {
+    authAlert('Too many registration attempts. Please wait 1 minute before trying again.');
+    return;
+  }
+
+  setSubmitLoading(true);
+  try {
+    await requireSupabase();
+    const fullName = sanitizeText(document.getElementById('auth-full-name')?.value, 160);
+    const phone = sanitizeText(document.getElementById('auth-phone')?.value, 40);
+    const chpCode = sanitizeText(document.getElementById('auth-chp-code')?.value, 40);
+    const email = sanitizeText(document.getElementById('auth-email')?.value, 160);
+    const password = document.getElementById('auth-password')?.value || '';
+
+    if (!fullName || !phone || !email || !password) {
+      authAlert('Full name, phone number, email, and password are required.');
+      return;
+    }
+
+    const metadata = { full_name: fullName, phone };
+    if (chpCode) metadata.chp_code_requested = chpCode;
+
+    const { error } = await sb.auth.signUp({
+      email,
+      password,
+      options: {
+        data: metadata,
+        emailRedirectTo: location.origin + location.pathname,
+      },
+    });
+    if (error) throw error;
+
+    setAuthMode('login');
+    authAlert('Registration submitted. Your account is awaiting Super Admin approval before system access is enabled.', 'alert-s');
+  } catch (err) {
+    authAlert(err.message || 'Registration failed');
+  } finally {
+    setSubmitLoading(false);
+  }
+}
 export async function login(e) {
+  if (authMode === 'register') return register(e);
   e.preventDefault();
   
   if (!checkRateLimit('login', 5, 60000)) {
@@ -186,5 +301,7 @@ export async function logout() {
   setCurrentUser(null);
   setCurrentProfile(null);
   setDB({ facilities: [], activeFacId: null });
+  setSubmitLoading(false);
   showAuth(false);
 }
+

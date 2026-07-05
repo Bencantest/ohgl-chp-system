@@ -16,10 +16,49 @@ export function fetchUsers() {
   return sb.from('users').select('id,facility_id,role,full_name,email,phone,active,last_login_at,created_at').order('full_name');
 }
 
-export function upsertUserProfile(payload) {
-  return sb.from('users').upsert(payload, { onConflict: 'id' }).select().single();
+
+export function listPendingUsersSecure() {
+  return sb.rpc('list_pending_users_secure');
 }
 
+export function listUsersSecure() {
+  return sb.rpc('list_users_secure');
+}
+
+export function approveUserSecure(targetUserId, facilityId, reason = '') {
+  return sb.rpc('approve_user_secure', { target_user_id: targetUserId, facility_id: facilityId, reason });
+}
+
+export function rejectUserSecure(targetUserId, reason) {
+  return sb.rpc('reject_user_secure', { target_user_id: targetUserId, reason });
+}
+
+export function suspendUserSecure(targetUserId, reason) {
+  return sb.rpc('suspend_user_secure', { target_user_id: targetUserId, reason });
+}
+
+export function reactivateUserSecure(targetUserId, reason) {
+  return sb.rpc('reactivate_user_secure', { target_user_id: targetUserId, reason });
+}
+
+export function deactivateUserSecure(targetUserId, reason) {
+  return sb.rpc('deactivate_user_secure', { target_user_id: targetUserId, reason });
+}
+
+export function assignUserFacilitySecure(targetUserId, facilityId, reason) {
+  return sb.rpc('assign_user_facility_secure', { target_user_id: targetUserId, facility_id: facilityId, reason });
+}
+
+export function changeUserRoleSecure(targetUserId, newRole, reason) {
+  return sb.rpc('change_user_role_secure', { target_user_id: targetUserId, new_role: newRole, reason });
+}
+
+export function fetchUserAccessAudit(limit = 50) {
+  return sb.from('user_access_audit')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+}
 export function writeAuditLog({ actorId, action, tableName, recordId, facilityId, changes }) {
   return sb.from('audit_logs').insert({
     actor_id: actorId,
@@ -116,4 +155,6 @@ export function markAllNotificationsRead(userId, facilityId) {
   }
   return query;
 }
+
+
 

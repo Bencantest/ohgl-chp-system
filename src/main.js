@@ -5,7 +5,7 @@ import { openModal, closeModal } from './components/modal.js';
 import { h, installInnerHTMLSanitizer, setSafeHTML } from './utils/sanitize.js';
 import { canAccessPage, getDefaultPage, renderAccessDenied } from './services/rbac.js';
 import { DB, setDB, currentUser, currentProfile, setCurrentUser, setCurrentProfile, fac } from './services/state.js';
-import { login, resetPassword, logout, bootstrapSession, applyPermissionsUI } from './services/authService.js';
+import { login, register, resetPassword, logout, bootstrapSession, applyPermissionsUI, setAuthMode } from './services/authService.js';
 import { toggleNotifDropdown, refreshNotifications, markNotificationAsRead, markAllNotificationsAsRead } from './services/notificationService.js';
 
 
@@ -17,7 +17,7 @@ import { renderMyReferrals } from './pages/myReferrals.js';
 import { renderDir, openAddCHP, openEditCHP, saveCHP, delCHP } from './pages/directory.js';
 import { renderReport, onReportFilterTypeChange, exportReport } from './pages/report.js';
 import { renderGroup } from './pages/group.js';
-import { loadSettings, saveSettings, deleteFacility, addFacility, exportJSON, importJSON, adminUserWizard } from './pages/settings.js';
+import { loadSettings, saveSettings, deleteFacility, addFacility, exportJSON, importJSON, adminUserWizard, iamApproveUser, iamRejectUser, iamSuspendUser, iamReactivateUser, iamDeactivateUser, iamAssignFacility, iamChangeRole } from './pages/settings.js';
 import { renderAudit } from './pages/audit.js';
 
 export function showAuth(isAuthed) {
@@ -231,6 +231,8 @@ sb?.auth.onAuthStateChange((_event, session) => {
 
 Object.assign(window, {
   login,
+  register,
+  setAuthMode,
   resetPassword,
   showPage,
   switchFac,
@@ -251,6 +253,13 @@ Object.assign(window, {
   exportJSON,
   importJSON,
   adminUserWizard,
+  iamApproveUser,
+  iamRejectUser,
+  iamSuspendUser,
+  iamReactivateUser,
+  iamDeactivateUser,
+  iamAssignFacility,
+  iamChangeRole,
   addFacility,
   saveCHP,
   openEditCHP,
@@ -263,3 +272,5 @@ Object.assign(window, {
   markNotificationAsRead,
   markAllNotificationsAsRead,
 });
+
+

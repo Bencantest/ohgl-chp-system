@@ -2,17 +2,17 @@ import { ROLE_PERMS, ROLE_LABELS } from '../constants/appConstants.js';
 import { currentProfile } from './state.js';
 import { h } from '../utils/sanitize.js';
 
-export const ROLE_ALIASES = { clinician: 'facility_officer', viewer: 'chp' };
+export const ROLE_ALIASES = {};
 
 export const PAGE_ACCESS = {
-  dashboard: ['super_admin', 'facility_admin', 'facility_officer', 'chp'],
-  new_referral: ['super_admin', 'facility_admin', 'facility_officer', 'chp'],
-  my_referrals: ['super_admin', 'facility_admin', 'facility_officer', 'chp'],
-  tracker: ['super_admin', 'facility_admin', 'facility_officer'],
-  directory: ['super_admin', 'facility_admin'],
-  report: ['super_admin', 'facility_admin', 'facility_officer'],
+  dashboard: ['super_admin', 'facility_manager', 'facility_officer', 'clinician', 'chp'],
+  new_referral: ['super_admin', 'facility_manager', 'facility_officer', 'clinician', 'chp'],
+  my_referrals: ['super_admin', 'facility_manager', 'facility_officer', 'clinician', 'chp'],
+  tracker: ['super_admin', 'facility_manager', 'facility_officer', 'clinician'],
+  directory: ['super_admin', 'facility_manager'],
+  report: ['super_admin', 'facility_manager', 'facility_officer', 'clinician'],
   group: ['super_admin'],
-  settings: ['super_admin', 'facility_admin'],
+  settings: ['super_admin', 'facility_manager'],
   audit: ['super_admin'],
 };
 
@@ -58,3 +58,4 @@ export function ensurePageAccess(pageId, targetId, message) {
   renderAccessDenied(targetId, message);
   return false;
 }
+

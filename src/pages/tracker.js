@@ -20,7 +20,7 @@ window.clearUnsavedReferralChanges = function() {
 
 function updateSaveButtonsState() {
   const role = normalizeRole(currentProfile?.role);
-  const isManualSaveRole = role === 'facility_manager' || role === 'technician' || role === 'facility_admin' || role === 'facility_officer' || role === 'clinician';
+  const isManualSaveRole = role === 'facility_manager' || role === 'facility_officer' || role === 'clinician';
   
   const saveBtn = document.getElementById('tracker-save-btn');
   const cancelBtn = document.getElementById('tracker-cancel-btn');
@@ -214,7 +214,7 @@ export async function updRef(facId, i, field, val) {
   const dbField = map[field];
   if (dbField && r.db_id) {
     const role = normalizeRole(currentProfile?.role);
-    const isManualSaveRole = role === 'facility_manager' || role === 'technician' || role === 'facility_admin' || role === 'facility_officer' || role === 'clinician';
+    const isManualSaveRole = role === 'facility_manager' || role === 'facility_officer' || role === 'clinician';
     
     let finalVal = val;
     if (dbField === 'age') {
@@ -334,3 +334,4 @@ function showTrackerAlert(msg, kind = 'alert-s') {
     alert(msg);
   }
 }
+
