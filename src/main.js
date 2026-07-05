@@ -12,7 +12,7 @@ import { toggleNotifDropdown, refreshNotifications, markNotificationAsRead, mark
 // Page modules
 import { renderDash } from './pages/dashboard.js';
 import { initSlip, clearSlipForm, submitReferral } from './pages/newReferral.js';
-import { renderTracker, updRef, delRef } from './pages/tracker.js';
+import { renderTracker, updRef, delRef, executeReferralWorkflowAction } from './pages/tracker.js';
 import { renderMyReferrals } from './pages/myReferrals.js';
 import { renderDir, openAddCHP, openEditCHP, saveCHP, delCHP } from './pages/directory.js';
 import { renderReport, onReportFilterTypeChange, exportReport } from './pages/report.js';
@@ -84,8 +84,15 @@ export async function refreshDB() {
         referral_facility: r.referral_facility_name || r.referral_facility,
         referral_facility_id: r.referral_facility_id,
         department: r.department,
-        workflow_status: r.workflow_status || r.opd_status || 'Submitted',
-        status: r.workflow_status || r.opd_status || 'Submitted',
+        workflow_status: r.workflow_status || r.referral_status || r.opd_status || 'Submitted',
+        referral_status: r.referral_status,
+        referral_stage: r.referral_stage,
+        referral_outcome: r.referral_outcome,
+        current_owner_type: r.current_owner_type,
+        current_owner_user_id: r.current_owner_user_id,
+        current_owner_facility_id: r.current_owner_facility_id,
+        current_owner_department: r.current_owner_department,
+        status: r.workflow_status || r.referral_status || r.opd_status || 'Submitted',
         timeline: r.timeline || [],
         opd_status: r.opd_status,
         received_by: r.received_by,
@@ -266,11 +273,13 @@ Object.assign(window, {
   delCHP,
   updRef,
   delRef,
+  executeReferralWorkflowAction,
   logout,
   togglePasswordVisibility,
   toggleNotifDropdown,
   markNotificationAsRead,
   markAllNotificationsAsRead,
 });
+
 
 

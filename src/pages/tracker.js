@@ -1,13 +1,16 @@
 import { fac, DB, currentProfile } from '../services/state.js';
 import { ensurePageAccess, normalizeRole } from '../services/rbac.js';
-import { updateReferralField, updateReferralSecureFull, deleteReferralRecord } from '../services/dataService.js';
+import { updateReferralSecureFull, deleteReferralRecord } from '../services/dataService.js';
 import { audit } from '../services/authService.js';
 import { sanitizeText } from '../utils/sanitize.js';
 import { setPrintHeader, docCode } from '../utils/helpers.js';
-import { integrations } from '../services/integrationService.js';
 import { refreshDB } from '../main.js';
+import { workflowActionService } from '../services/workflowActionService.js';
+import { renderWorkflowBundle } from '../components/referralWorkflow.js';
 
 let trackerEdits = {};
+const workflowActionCache = {};
+const workflowArtifactCache = {};
 
 window.hasUnsavedReferralChanges = function() {
   return Object.keys(trackerEdits).length > 0;
@@ -142,11 +145,11 @@ export function renderTracker(nextPage = trackerPage) {
           <label><input type="radio" name="sha_${ri}" ${r.sha === 'No' ? 'checked' : ''} onchange="updRef('${f.id}',${ri},'sha','No')"> N</label>
         </div>
       </td>
-      <td><select class="ss" onchange="updRef('${f.id}',${ri},'workflow_status',this.value)">${['Submitted','Under Review','Received','In Consultation','Admitted','Completed','Closed','Cancelled'].map(st => `<option ${((r.workflow_status || r.status || 'Submitted') === st) ? 'selected' : ''}>${st}</option>`).join('')}</select></td>
+      <td><span class="bdg bdg-t">${r.workflow_status || r.status || 'Submitted'}</span><br><span class="muted-mini">${r.referral_stage || r.stage || 'Backend-owned'}</span></td>
       <td><input class="reg-input" value="${r.received_by || ''}" style="width:110px" placeholder="Received by" onchange="updRef('${f.id}',${ri},'received_by',this.value)"><input class="reg-input" value="${r.file_no || ''}" style="width:90px" placeholder="File no" onchange="updRef('${f.id}',${ri},'file_no',this.value)"><input class="reg-input" value="${r.sha_no || ''}" style="width:90px" placeholder="SHA no" onchange="updRef('${f.id}',${ri},'sha_no',this.value)"></td>
       <td><input class="reg-input" value="${r.notes || ''}" style="width:120px" placeholder="Outcome / notes" onchange="updRef('${f.id}',${ri},'notes',this.value)"></td>
       <td><button class="btn btn-s btn-sm" onclick="delRef('${f.id}',${ri})" title="Delete"><i class="ti ti-trash"></i></button></td>
-      </tr>`;
+      </tr><tr class="wf-detail-row"><td colspan="15"><div id="workflow-panel-${r.db_id}">${renderWorkflowBundle(r, workflowActionCache[r.db_id] || {}, workflowArtifactCache[r.db_id] || {}, true)}</div></td></tr>`;
     })
     .join('');
 
@@ -164,7 +167,7 @@ export function renderTracker(nextPage = trackerPage) {
         <thead><tr>
           <th>#</th><th>Slip No.</th><th>Date</th><th>Patient Name</th>
           <th>Age</th><th>Sex</th><th>CHP / Village</th><th>File / SHA</th><th>Category</th>
-          <th>Priority</th><th>SHA</th><th>Workflow Status</th><th>Facility Fields</th><th>Outcome / Notes</th><th></th>
+          <th>Priority</th><th>SHA</th><th>Workflow</th><th>Facility Fields</th><th>Outcome / Notes</th><th></th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
@@ -188,8 +191,52 @@ export function renderTracker(nextPage = trackerPage) {
       </div>
     </div>`;
   updateSaveButtonsState();
+  hydrateWorkflowPanels(visibleRefs);
 }
 
+async function hydrateWorkflowPanels(refs) {
+  await Promise.all((refs || []).filter(r => r.db_id).map(async r => {
+    const panel = document.getElementById(`workflow-panel-${r.db_id}`);
+    if (!panel) return;
+    try {
+      const [actions, artifacts] = await Promise.all([
+        workflowActionService.loadAvailableActions(r.db_id),
+        workflowActionService.loadReferralArtifacts(r.db_id),
+      ]);
+      workflowActionCache[r.db_id] = actions;
+      workflowArtifactCache[r.db_id] = artifacts;
+      panel.innerHTML = renderWorkflowBundle(r, actions, artifacts, false);
+    } catch (err) {
+      panel.innerHTML = `<div class="alert alert-e"><i class="ti ti-alert-circle"></i> ${sanitizeText(err.message || 'Unable to load workflow details.', 500)}</div>`;
+    }
+  }));
+}
+
+export async function executeReferralWorkflowAction(referralId, command) {
+  const actionState = workflowActionCache[referralId];
+  const action = actionState?.available_actions?.find(a => a.command === command);
+  if (!action) {
+    showTrackerAlert('This workflow action is no longer available. Refreshing actions...', 'alert-e');
+    await refreshDB();
+    renderTracker();
+    return;
+  }
+
+  const panel = document.getElementById(`workflow-panel-${referralId}`);
+  try {
+    if (panel) panel.classList.add('wf-loading');
+    const result = await workflowActionService.executeAction(referralId, action);
+    if (result.cancelled) return;
+    delete workflowActionCache[referralId];
+    delete workflowArtifactCache[referralId];
+    showTrackerAlert(`${action.label || action.command} completed.`, 'alert-s');
+    renderTracker();
+  } catch (err) {
+    showTrackerAlert(err.message || 'Workflow action failed.', 'alert-e');
+  } finally {
+    if (panel) panel.classList.remove('wf-loading');
+  }
+}
 export async function updRef(facId, i, field, val) {
   if (!ensurePageAccess('tracker', 'tracker-tbl')) return;
   const f = DB.facilities.find(x => x.id === facId);
@@ -204,8 +251,6 @@ export async function updRef(facId, i, field, val) {
     sex: 'sex',
     priority: 'priority',
     sha: 'sha_registered',
-    opd_status: 'opd_status',
-    workflow_status: 'opd_status',
     received_by: 'received_by',
     file_no: 'file_no',
     sha_no: 'sha_no',
@@ -241,10 +286,6 @@ export async function updRef(facId, i, field, val) {
       await audit('update', 'referrals', r.db_id, payload);
       
       // Future-Ready Integration Sync (non-blocking)
-      if (dbField === 'opd_status' && val === 'Completed') {
-        integrations.syncReferralToEMR(r).catch(err => console.error('[EMR Sync Error]', err));
-        integrations.pushAggregateToDHIS2({ event: 'referral_completion', id: r.id, facility: f.name }).catch(err => console.error('[DHIS2 Sync Error]', err));
-      }
     }
   }
 }
@@ -292,14 +333,6 @@ window.saveTrackerChanges = async function() {
       delete trackerEdits[refDbId];
       await audit('update', 'referrals', refDbId, payload);
       
-      if (payload.opd_status === 'Completed') {
-        const f = fac();
-        const r = f?.referrals.find(x => x.db_id === refDbId);
-        if (r && f) {
-          integrations.syncReferralToEMR(r).catch(err => console.error('[EMR Sync Error]', err));
-          integrations.pushAggregateToDHIS2({ event: 'referral_completion', id: r.id, facility: f.name }).catch(err => console.error('[DHIS2 Sync Error]', err));
-        }
-      }
     }
   }
   
@@ -334,4 +367,10 @@ function showTrackerAlert(msg, kind = 'alert-s') {
     alert(msg);
   }
 }
+
+
+
+
+
+
 

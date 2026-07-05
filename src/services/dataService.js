@@ -74,12 +74,45 @@ export function createReferralRecord(payload) {
   return sb.rpc('create_referral_secure', { payload });
 }
 
-export function updateReferralField(referralId, field, value) {
-  return sb.rpc('update_referral_secure', {
+
+export function getAvailableReferralActions(referralId) {
+  return sb.rpc('get_available_referral_actions', { referral_id: referralId });
+}
+
+export function executeReferralCommand(commandRpc, referralId, payload = {}) {
+  return sb.rpc(commandRpc, {
     p_referral_id: referralId,
-    p_field: field,
-    p_value: String(value ?? ''),
+    payload,
   });
+}
+
+export function fetchReferralEvents(referralId) {
+  return sb.from('referral_events')
+    .select('created_at,event_name,actor_role,department,reason,metadata,event_category,actor:users!referral_events_actor_id_fkey(full_name),facility:facilities!referral_events_facility_id_fkey(name)')
+    .eq('referral_id', referralId)
+    .order('created_at', { ascending: false });
+}
+
+export function fetchReferralClinicalNotes(referralId) {
+  return sb.from('referral_clinical_notes')
+    .select('id,note_type,note_text,author_role,version,created_at,author:users!referral_clinical_notes_author_id_fkey(full_name)')
+    .eq('referral_id', referralId)
+    .order('note_type', { ascending: true })
+    .order('version', { ascending: false });
+}
+
+export function fetchReferralAssignmentHistory(referralId) {
+  return sb.from('referral_assignment_history')
+    .select('created_at,previous_owner_type,new_owner_type,previous_department,new_department,reason,assignment_type,actor:users!referral_assignment_history_actor_id_fkey(full_name)')
+    .eq('referral_id', referralId)
+    .order('created_at', { ascending: false });
+}
+
+export function fetchReferralSla(referralId) {
+  return sb.from('referral_sla_timers')
+    .select('transition_name,target_at,warning_at,breach_at,completed_at,breached,created_at,updated_at')
+    .eq('referral_id', referralId)
+    .order('target_at', { ascending: true });
 }
 
 export function updateReferralSecureFull(referralId, payload) {
@@ -155,6 +188,9 @@ export function markAllNotificationsRead(userId, facilityId) {
   }
   return query;
 }
+
+
+
 
 
 
