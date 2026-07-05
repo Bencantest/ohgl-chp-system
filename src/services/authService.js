@@ -194,7 +194,7 @@ export async function register(e) {
     const fullName = sanitizeText(document.getElementById('auth-full-name')?.value, 160);
     const phone = sanitizeText(document.getElementById('auth-phone')?.value, 40);
     const chpCode = sanitizeText(document.getElementById('auth-chp-code')?.value, 40);
-    const email = sanitizeText(document.getElementById('auth-email')?.value, 160);
+    const email = String(document.getElementById('auth-email')?.value ?? '').trim().toLowerCase();
     const password = document.getElementById('auth-password')?.value || '';
 
     if (!fullName || !phone || !email || !password) {
@@ -244,7 +244,7 @@ export async function login(e) {
 
   try {
     await requireSupabase();
-    const email = sanitizeText(document.getElementById('auth-email').value, 160);
+    const email = String(document.getElementById('auth-email')?.value ?? '').trim().toLowerCase();
     const password = document.getElementById('auth-password').value;
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
     if (error) throw error;
@@ -265,7 +265,7 @@ export async function login(e) {
 }
 
 export async function resetPassword() {
-  const email = sanitizeText(document.getElementById('auth-email').value, 160);
+  const email = String(document.getElementById('auth-email')?.value ?? '').trim().toLowerCase();
   if (!email) {
     authAlert('Enter your email first.');
     return;
@@ -304,4 +304,6 @@ export async function logout() {
   setSubmitLoading(false);
   showAuth(false);
 }
+
+
 
