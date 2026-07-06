@@ -169,8 +169,8 @@ function renderIamUserRows(users, isPending) {
       <td>${h(user.chp_code_requested || '-')}</td>
       <td>${user.created_at ? h(new Date(user.created_at).toLocaleString()) : '-'}</td>
       <td style="min-width:260px">
-        ${isPending ? `<select class="fi" id="iam-fac-${h(user.id)}" style="margin-bottom:6px" required>${renderFacilityOptions(user.facility_id)}</select><button class="btn btn-p btn-sm" onclick="iamApproveUser('${h(user.id)}')"><i class="ti ti-check"></i> Approve</button> <button class="btn btn-d btn-sm" onclick="iamRejectUser('${h(user.id)}')"><i class="ti ti-x"></i> Reject</button>` : ''}
-        ${!isPending ? `<select class="fi" id="iam-role-${h(user.id)}" style="margin-bottom:6px">${renderRoleOptions(user.role)}</select><select class="fi" id="iam-fac-${h(user.id)}" style="margin-bottom:6px">${renderFacilityOptions(user.facility_id)}</select><button class="btn btn-s btn-sm" onclick="iamChangeRole('${h(user.id)}')">Role</button> <button class="btn btn-s btn-sm" onclick="iamAssignFacility('${h(user.id)}')">Facility</button> <button class="btn btn-s btn-sm" onclick="iamSuspendUser('${h(user.id)}')">Suspend</button> <button class="btn btn-s btn-sm" onclick="iamReactivateUser('${h(user.id)}')">Reactivate</button> <button class="btn btn-d btn-sm" onclick="iamDeactivateUser('${h(user.id)}')">Deactivate</button>` : ''}
+        ${isPending ? `<select class="fi" id="iam-fac-${h(user.id)}" style="margin-bottom:6px" required>${renderFacilityOptions(user.facility_id)}</select><button type="button" class="btn btn-p btn-sm" data-iam-action="approve" data-user-id="${h(user.id)}"><i class="ti ti-check"></i> Approve</button> <button type="button" class="btn btn-d btn-sm" data-iam-action="reject" data-user-id="${h(user.id)}"><i class="ti ti-x"></i> Reject</button>` : ''}
+        ${!isPending ? `<select class="fi" id="iam-role-${h(user.id)}" style="margin-bottom:6px">${renderRoleOptions(user.role)}</select><select class="fi" id="iam-fac-${h(user.id)}" style="margin-bottom:6px">${renderFacilityOptions(user.facility_id)}</select><button type="button" class="btn btn-s btn-sm" data-iam-action="change-role" data-user-id="${h(user.id)}">Role</button> <button type="button" class="btn btn-s btn-sm" data-iam-action="assign-facility" data-user-id="${h(user.id)}">Facility</button> <button type="button" class="btn btn-s btn-sm" data-iam-action="suspend" data-user-id="${h(user.id)}">Suspend</button> <button type="button" class="btn btn-s btn-sm" data-iam-action="reactivate" data-user-id="${h(user.id)}">Reactivate</button> <button type="button" class="btn btn-d btn-sm" data-iam-action="deactivate" data-user-id="${h(user.id)}">Deactivate</button>` : ''}
       </td>
     </tr>`).join('');
 }
@@ -202,6 +202,41 @@ function renderIamPanel() {
     <div style="overflow-x:auto"><table class="reg-tbl"><thead><tr><th>User</th><th>Phone</th><th>Status</th><th>Role</th><th>Facility</th><th>CHP Code</th><th>Created</th><th>Actions</th></tr></thead><tbody>${renderIamUserRows(allUsers, false)}</tbody></table></div>
     <h4 style="margin:18px 0 8px">Recent Access Audit</h4>
     <div style="overflow-x:auto"><table class="reg-tbl"><thead><tr><th>Time</th><th>Action</th><th>Target User</th><th>Reason</th><th>New Value</th></tr></thead><tbody>${renderIamAuditRows()}</tbody></table></div>`;
+  bindIamPanelEvents(panel);
+}
+
+function bindIamPanelEvents(panel) {
+  panel.onclick = event => {
+    const button = event.target.closest('[data-iam-action][data-user-id]');
+    if (!button || !panel.contains(button)) return;
+
+    const userId = button.dataset.userId;
+    switch (button.dataset.iamAction) {
+      case 'approve':
+        iamApproveUser(userId);
+        break;
+      case 'reject':
+        iamRejectUser(userId);
+        break;
+      case 'change-role':
+        iamChangeRole(userId);
+        break;
+      case 'assign-facility':
+        iamAssignFacility(userId);
+        break;
+      case 'suspend':
+        iamSuspendUser(userId);
+        break;
+      case 'reactivate':
+        iamReactivateUser(userId);
+        break;
+      case 'deactivate':
+        iamDeactivateUser(userId);
+        break;
+      default:
+        break;
+    }
+  };
 }
 
 function iamAlert(message, kind = 'alert-e') {
@@ -250,6 +285,7 @@ export async function adminUserWizard() {
 }
 
 export async function iamApproveUser(userId) {
+  console.log('Approve clicked');
   const selectedUser = iamUsers.find(user => user.id === userId) || null;
   const facilitySelect = document.getElementById(`iam-fac-${userId}`);
   const facilityId = facilitySelect?.value || '';
@@ -292,6 +328,7 @@ export async function iamApproveUser(userId) {
 }
 
 export async function iamRejectUser(userId) {
+  console.log('Reject clicked');
   const reason = promptReason('reject this user');
   if (!reason) return iamAlert('Rejection reason is required.');
   try {
