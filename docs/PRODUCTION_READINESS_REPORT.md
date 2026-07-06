@@ -1,76 +1,88 @@
-# Production Readiness Report
+# Production Readiness Report - v1.0.0-rc1
 
-Date: 2026-07-05
+## Architecture
 
-## Overall Readiness Score
-
-Score: 78 / 100
-
-OCHP has a strong architecture foundation with secure RPCs, RLS, workflow command ownership, documentation, and CI scaffolding. The main gaps are automated E2E coverage, live migration rehearsal evidence, production monitoring, and formal incident response drills.
-
-## Architecture Maturity
-
-Assessment: Strong.
-
-The system has clear frontend/backend separation, canonical workflow ownership, ADRs, domain model documentation, and an explicit metadata engine direction.
+OCHP is a static browser application backed by Supabase Auth, Postgres, RLS, secure views, and secure RPCs. Core modules include authentication, IAM approval, facility-scoped referral tracking, workflow metadata/actions, CHP directory, coverage areas, reports, audit, and operational documentation.
 
 ## Security
 
-Assessment: Strong but requires operational hardening.
+Validation completed:
 
-Strengths include Supabase Auth, RLS, canonical roles, secure RPCs, approval lifecycle, and audit logging. Remaining work includes MFA policy, secret rotation procedures, and formal penetration testing.
+- RLS hardening tests passed.
+- Sensitive secure RPCs revoke public execute and grant authenticated execute only.
+- Frontend configuration tests confirm no service-role key material.
+- CSP/security header tests passed.
+- IAM lifecycle RPC tests passed.
+- Role permission tests passed for Super Admin, facility roles, clinician, and CHP.
 
 ## Performance
 
-Assessment: Moderate.
+Automated performance baselines passed:
 
-Pagination and bounded notification queries exist. Larger facility datasets require load testing and query plan review.
-
-## Testing Coverage
-
-Assessment: Emerging.
-
-Validation scripts and test structure are in place. Full automated workflow, integration, and E2E suites remain to be implemented.
+| Area | Validation Result |
+| --- | --- |
+| Dashboard aggregation | Passed 5000-referral baseline test. |
+| Tracker filtering/search | Passed 5000-referral baseline test. |
+| Referral search/filter paths | Regression tests passed. |
+| Workflow metadata/action execution | Contract/security tests passed. |
+| Report generation | Static/regression paths passed; browser export still needs manual UAT. |
 
 ## Documentation
 
-Assessment: Strong.
+Documentation validation passed for 64 markdown files after adding UAT and RC artifacts. Operational, deployment, database, release, security, workflow, and API docs are present.
 
-Architecture docs, ADRs, API contracts, security model, database guidelines, workflow docs, and roadmap exist.
+## Deployment
 
-## Deployment Readiness
+Static deployment artifact verification passed. GitHub Actions cover install, lint/static JS validation, docs validation, migration validation, static build verification, and tests. Vercel/Supabase deployment runbooks and rollback checklists are documented.
 
-Assessment: Moderate.
+## Testing
 
-Deployment and environment documents exist. Production release automation, migration dry-runs, and rollback rehearsal should be completed before broad rollout.
+Automated checks executed locally with bundled Node runtime:
 
-## Operational Readiness
+- JavaScript syntax: passed.
+- Documentation validation: passed.
+- Migration validation: passed.
+- Static build verification: passed.
+- Test suite: 34 passed, 0 failed.
 
-Assessment: Moderate.
+## Functional Validation Summary
 
-Backup, restore, migration, and DR procedures are documented. Monitoring, alerting, and incident runbooks should be expanded.
-
-## Technical Debt
-
-- Root-level frontend remains in place for compatibility rather than a full `frontend/` relocation.
-- Automated E2E tests are templates rather than complete browser automation.
-- Some legacy compatibility fields remain by design.
-- Integration stubs need formal backend-owned integration services later.
-
-## Risk Register
-
-| Risk | Impact | Mitigation |
+| Module | Result | Notes |
 | --- | --- | --- |
-| Insufficient E2E coverage | Workflow regressions | Prioritize Playwright workflow suite |
-| Migration applied without rehearsal | Downtime/data risk | Require staging migration and backup evidence |
-| Misconfigured Supabase keys | Security exposure | Environment checklist and secret review |
-| Large dataset performance | Slow facility operations | Add load tests and query plan review |
-| Incomplete incident practice | Slow recovery | Run tabletop DR exercise |
+| Authentication | Pass with manual smoke pending | Static and service paths validated. |
+| Registration/approval | Pass with manual smoke pending | Secure IAM RPC tests passed. |
+| Role/facility assignment | Pass with manual smoke pending | Super Admin RPC path covered. |
+| Dashboard | Pass | Regression/performance tests passed. |
+| CHP Directory | Pass with manual smoke pending | Delegated edit handling and secure save path validated by syntax/static review. |
+| Coverage Areas | Pass with manual smoke pending | Coverage separated from CHP active state via migration/RPC. |
+| Referrals | Pass | Secure creation and regression paths covered. |
+| Workflow Actions | Pass | Metadata, security, side-effect tests passed. |
+| Notifications | Manual UAT pending | Static service paths exist; live event verification required. |
+| Reports/exports | Manual UAT pending | Static export paths exist; browser-generated files require UAT. |
+| Search/filters/pagination | Pass with manual smoke pending | Automated regression/performance tests passed for key paths. |
 
-## Prioritized Recommendations
+## Risks
 
-1. Implement automated workflow E2E tests.
-2. Rehearse staging migration and restore.
-3. Add release monitoring and error reporting.
-4. Add production backup verification evidence to every release.
-5. Plan a dedicated frontend relocation sprint if desired.
+- Live Supabase smoke tests are not automated in CI.
+- Browser-based export behavior requires manual verification.
+- Notification delivery depends on runtime data/configuration and requires manual UAT.
+- No npm lockfile exists, so CI uses `npm install` rather than `npm ci`.
+- Restore/RTO/RPO objectives require rehearsal before production launch.
+
+## Known Issues
+
+See `KNOWN_ISSUES.md` for classified issues and workarounds.
+
+## Recommendations
+
+1. Execute UAT packs in staging with synthetic data.
+2. Apply all pending migrations to staging before RC deployment.
+3. Run browser smoke tests for auth, IAM approval, referral submission, workflow progression, coverage areas, reports, and exports.
+4. Capture backup/restore rehearsal evidence before production go-live.
+5. Add live Supabase smoke checks to CI or release automation after RC1.
+
+## Go / No-Go Decision
+
+Conditional GO for `v1.0.0-rc1` staging release candidate.
+
+Do not promote to production until manual UAT, staging smoke tests, backup verification, and rollback rehearsal evidence are complete.
