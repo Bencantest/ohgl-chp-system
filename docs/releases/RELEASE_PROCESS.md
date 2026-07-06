@@ -1,179 +1,105 @@
 # Release Process
 
-This document defines the OCHP release lifecycle from development through maintenance.
+## Purpose
 
-## Lifecycle Overview
+Define the controlled OCHP release path from feature freeze through production release, hotfix, rollback, version tagging, and release notes.
+
+## Release Stages
 
 ```mermaid
-flowchart TD
-  Dev[Development] --> FC[Feature Complete]
-  FC --> CR[Code Review]
-  CR --> AR[Architecture Review]
-  AR --> Unit[Unit Testing]
-  Unit --> Int[Integration Testing]
-  Int --> Workflow[Workflow Testing]
-  Workflow --> Perf[Performance Testing]
-  Perf --> Sec[Security Testing]
-  Sec --> Reg[Regression Testing]
-  Reg --> UAT[User Acceptance Testing]
-  UAT --> RC[Release Candidate]
-  RC --> Prod[Production Release]
-  Prod --> Maint[Maintenance]
+flowchart LR
+  Freeze[Feature Freeze] --> RC[Release Candidate]
+  RC --> Staging[Staging Validation]
+  Staging --> Prod[Production Release]
+  Prod --> Watch[Post-release Watch]
+  Watch --> Close[Closeout]
+  Prod --> Rollback[Rollback if needed]
 ```
 
-## Development
+## Feature Freeze
 
-Development happens on feature branches. Work must remain scoped to the approved sprint or release objective.
+Feature freeze starts when sprint scope is complete and release stabilization begins.
 
-Entry criteria:
+Requirements:
 
-- Approved issue, sprint item, or release objective.
-- Architecture impact understood.
-- Test expectations identified.
+- No new healthcare features.
+- No unapproved IAM/RLS/referral workflow changes.
+- Documentation updated for operational changes.
+- CI green on the release branch.
+- Known issues triaged.
 
-Exit criteria:
+## Release Candidate
 
-- Implementation complete.
-- Local checks pass.
-- Documentation updated where needed.
+A release candidate is a reviewed commit or tag deployed to staging.
 
-## Feature Complete
+Requirements:
 
-A release becomes feature complete when no new scope is accepted except defect fixes, documentation corrections, test additions, or release blockers.
+- `npm run ci` or equivalent GitHub Actions checks pass.
+- Migration order reviewed.
+- Staging backup confirmed if staging data must be preserved.
+- Staging smoke tests completed.
+- Release notes drafted.
 
-## Code Review
+## Production Release
 
-Reviewers assess maintainability, security, compatibility, tests, and consistency with architecture decisions.
+Production release requires explicit approval and a release window.
 
-## Architecture Review
+Steps:
 
-Required for:
+1. Confirm production backup timestamp.
+2. Confirm rollback owner and incident lead.
+3. Apply production migrations.
+4. Deploy frontend artifact from the approved tag or commit.
+5. Run post-deployment smoke checks.
+6. Monitor logs and user reports.
+7. Publish release notes.
 
-- New modules.
-- Database migrations.
-- Secure RPC changes.
-- Workflow lifecycle changes.
-- Integration boundaries.
-- Breaking changes.
+## Hotfix Release
 
-## Test Gates
+Hotfixes are for production-impacting defects only.
 
-Each release should pass:
+Requirements:
 
-- JavaScript syntax validation.
-- Existing validation scripts.
-- Unit tests.
-- Integration tests where environment is available.
-- Workflow tests for referral lifecycle.
-- Regression tests for dashboards, reports, exports, auth, IAM, and tracker.
-- Security tests for role, facility, RLS, and lifecycle restrictions.
+- Document incident or defect.
+- Keep code changes minimal and scoped.
+- Run focused tests plus CI.
+- Deploy to staging when time allows.
+- Tag with a hotfix version.
+- Publish hotfix notes and follow-up actions.
 
-## Release Candidate Policy
+## Rollback
 
-### RC1
+Rollback is approved by the incident lead when production impact is worse than rollback risk.
 
-First complete candidate after all planned scope is merged and release notes are drafted.
+Frontend rollback: redeploy the last known-good Vercel deployment or release tag.
 
-Promotion to RC1 requires:
+Database rollback: prefer forward-fix migration. Restore only when data integrity or service recovery requires it and after staging validation.
 
-- Feature complete.
-- CI passing.
-- Required documentation updated.
-- No known critical defects.
+## Version Tagging
 
-### RC2
+Recommended tag format:
 
-Created when RC1 has release-blocking fixes or required validation corrections.
+- `ochp-<major>.<minor>.<patch>` for planned releases.
+- `ochp-<major>.<minor>.<patch>-rc.<n>` for release candidates.
+- `ochp-<major>.<minor>.<patch>-hotfix.<n>` for hotfixes.
 
-### RC3
+Tag records must include commit, release notes, migration range, deployment timestamp, and operator.
 
-Created only when RC2 still has blockers. RC3 should trigger a release manager review of whether the release should be delayed.
+## Release Notes
 
-## Promotion Rules
+Release notes must include:
 
-A release candidate can become production when:
+- Summary.
+- Operational changes.
+- Migration list.
+- Deployment instructions.
+- Rollback notes.
+- Known risks.
+- Verification checklist results.
 
-- No critical or high severity open defects remain.
-- UAT is signed off.
-- Security review passes.
-- Backup and rollback are verified.
-- Release checklist is complete.
-- Release owner, technical lead, and product owner approve.
+## Closeout
 
-## Rollback Rules
-
-Rollback is required when production has:
-
-- Patient safety risk.
-- Data integrity risk.
-- Security exposure.
-- Severe availability incident.
-- Critical workflow regression without immediate forward fix.
-
-Frontend rollback should redeploy the previous tagged artifact. Database rollback should prefer forward-fix migrations unless an approved rollback plan has been rehearsed.
-
-## Approval Process
-
-Required approvers:
-
-- Release owner.
-- Technical/architecture lead.
-- QA lead or tester representative.
-- Product owner or healthcare operations representative.
-- Security reviewer for security-impacting releases.
-
-## Maintenance
-
-After production release:
-
-- Monitor support channels and logs.
-- Triage defects.
-- Patch urgent issues through hotfix branches.
-- Update changelog with released changes.
-- Record lessons learned.
-
-## Change Management
-
-### Feature Requests
-
-Feature requests must describe the user, operational need, expected outcome, and release target. Product and architecture leads decide whether the request belongs in the current release, a future minor release, or the backlog.
-
-### Bug Reports
-
-Bug reports must include environment, role, facility scope, steps to reproduce, expected behavior, actual behavior, severity, and screenshots/logs where safe.
-
-### Technical Debt
-
-Technical debt should be tracked explicitly. Debt that affects security, patient safety, deployment reliability, or workflow correctness receives priority over cosmetic refactoring.
-
-### Architecture Changes
-
-Architecture changes require ADR updates and architecture review. Breaking changes require migration, compatibility, and rollback plans.
-
-### Breaking Changes
-
-Breaking changes are reserved for MAJOR releases unless a security emergency requires otherwise. Stakeholders must receive migration guidance before adoption.
-
-### Deprecation Policy
-
-Deprecated features remain available for at least one MINOR release where practical. Documentation must state replacement behavior, removal target, and migration steps.
-
-### Migration Policy
-
-Database migrations are forward-only by default. Production migrations require backup verification, staging rehearsal, and post-deployment checks.
-
-## Phase 3 Exit Criteria
-
-OCHP cannot begin Phase 4 Clinical Operations until all items below are complete:
-
-- [ ] Engineering Foundation completed.
-- [ ] Documentation completed.
-- [ ] CI/CD operational.
-- [ ] Database backup procedures verified.
-- [ ] End-to-end workflow testing completed.
-- [ ] Security review completed.
-- [ ] Performance review completed.
-- [ ] Regression testing passed.
-- [ ] User Acceptance Testing completed.
-- [ ] Critical issues resolved.
-- [ ] Release Candidate tagged: `v1.0.0-rc1`.
+- Confirm monitoring watch period completed.
+- Confirm incidents or anomalies documented.
+- Confirm release notes published.
+- Confirm runbooks updated if the release changed operations.

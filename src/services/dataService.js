@@ -5,6 +5,7 @@ export function fetchCoreData() {
     sb.from('facilities').select('*').order('location'),
     sb.from('chp_directory_secure').select('*').order('code'),
     sb.from('referrals_secure').select('*').order('created_at', { ascending: true }),
+    sb.from('coverage_areas').select('*').order('sub_location'),
   ]);
 }
 
@@ -136,6 +137,10 @@ export function deleteReferralRecord(referralId) {
 
 export function saveChpRecord(payload) {
   return sb.rpc('upsert_chp_secure', { payload });
+}
+
+export function saveCoverageAreaRecord(payload) {
+  return sb.rpc('upsert_coverage_area_secure', { payload });
 }
 
 export function deleteChpRecord(chpId) {

@@ -35,9 +35,10 @@ export async function refreshDB() {
     { data: facilities, error: facErr },
     { data: chps, error: chpErr },
     { data: refs, error: refErr },
+    { data: coverageAreas, error: coverageErr },
   ] = await fetchCoreData();
   
-  if (facErr || chpErr || refErr) throw facErr || chpErr || refErr;
+  if (facErr || chpErr || refErr || coverageErr) throw facErr || chpErr || refErr || coverageErr;
   
   const newFacilities = (facilities || []).map(makeFac);
   newFacilities.forEach(f => {
@@ -57,6 +58,19 @@ export async function refreshDB() {
         id: c.id,
         user_id: c.user_id,
         facility_id: c.facility_id,
+      }));
+    f.coverageAreas = (coverageAreas || [])
+      .filter(area => area.facility_id === f.id)
+      .map(area => ({
+        id: area.id,
+        facility_id: area.facility_id,
+        sub_location: area.sub_location,
+        coverage_status: area.coverage_status,
+        required_chps: area.required_chps,
+        assigned_chps: area.assigned_chps,
+        reviewed_by: area.reviewed_by,
+        reviewed_at: area.reviewed_at,
+        notes: area.notes,
       }));
     f.referrals = (refs || [])
       .filter(r => r.facility_id === f.id)

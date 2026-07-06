@@ -4,13 +4,18 @@ on:
   push:
     paths:
       - 'docs/**'
+      - 'deployments/**'
       - 'README.md'
       - 'scripts/validate-docs.mjs'
   pull_request:
     paths:
       - 'docs/**'
+      - 'deployments/**'
       - 'README.md'
       - 'scripts/validate-docs.mjs'
+
+permissions:
+  contents: read
 
 jobs:
   docs:
@@ -22,5 +27,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm install
       - name: Validate required docs, links, and Mermaid fences
-        run: node scripts/validate-docs.mjs
+        run: npm run validate:docs
+

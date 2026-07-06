@@ -4,8 +4,16 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
+    name: Validate, test, and verify static deployment
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -14,15 +22,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
       - name: Install dependencies
         run: npm install
-      - name: JavaScript syntax validation
-        run: npm run check:syntax
-      - name: Inline JavaScript validation
-        run: npm run check:js
+      - name: Lint and JavaScript syntax validation
+        run: npm run lint
       - name: Documentation validation
         run: npm run validate:docs
       - name: Migration validation
         run: npm run validate:migrations
-      - name: Unit tests
+      - name: Build verification
+        run: npm run verify:build
+      - name: Test execution
         run: npm test
+
