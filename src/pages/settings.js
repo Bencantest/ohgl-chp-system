@@ -209,6 +209,17 @@ function iamAlert(message, kind = 'alert-e') {
   if (el) el.innerHTML = `<div class="alert ${kind}">${h(message)}</div>`;
 }
 
+function iamErrorMessage(err, fallback) {
+  const message = err?.message || fallback;
+  if (/only super admin/i.test(message)) return 'Only Super Admin can manage user approvals and roles.';
+  if (/valid facility/i.test(message)) return 'Select a valid facility before approving or assigning this user.';
+  if (/pending users can be approved/i.test(message)) return 'This user is no longer pending and cannot be approved again.';
+  if (/pending users can be rejected/i.test(message)) return 'This user is no longer pending and cannot be rejected.';
+  if (/canonical|invalid role/i.test(message)) return 'Select a valid canonical role before saving.';
+  if (/row-level security|permission denied|not authorized/i.test(message)) return 'You do not have permission to complete this IAM action.';
+  return message || fallback;
+}
+
 async function refreshIamPanel() {
   const [{ data: users, error: usersErr }, { data: auditRows, error: auditErr }] = await Promise.all([
     listUsersSecure(),
@@ -262,28 +273,36 @@ export async function iamApproveUser(userId) {
     return;
   }
 
-  const { data, error } = await approveUserSecure(payload.target_user_id, payload.facility_id, payload.reason);
-  logApprovalDebug('RPC response', data);
-  logApprovalDebug('RPC error', error);
+  try {
+    const { data, error } = await approveUserSecure(payload.target_user_id, payload.facility_id, payload.reason);
+    logApprovalDebug('RPC response', data);
+    logApprovalDebug('RPC error', error);
 
-  if (error) {
-    iamAlert(error.message || 'Approval failed.');
-    return;
+    if (error) throw error;
+
+    iamAlert('User approved successfully.', 'alert-s');
+    await Promise.all([
+      refreshIamPanel(),
+      refreshDB(),
+    ]);
+  } catch (err) {
+    console.warn('IAM approval failed', { code: err?.code, details: err?.details, hint: err?.hint });
+    iamAlert(iamErrorMessage(err, 'Approval failed. Please try again.'));
   }
-
-  iamAlert('User approved successfully.', 'alert-s');
-  await Promise.all([
-    refreshIamPanel(),
-    refreshDB(),
-  ]);
 }
 
 export async function iamRejectUser(userId) {
   const reason = promptReason('reject this user');
   if (!reason) return iamAlert('Rejection reason is required.');
-  const { error } = await rejectUserSecure(userId, reason);
-  if (error) return iamAlert(error.message);
-  await refreshIamPanel();
+  try {
+    const { error } = await rejectUserSecure(userId, reason);
+    if (error) throw error;
+    iamAlert('User rejected successfully.', 'alert-s');
+    await refreshIamPanel();
+  } catch (err) {
+    console.warn('IAM rejection failed', { code: err?.code, details: err?.details, hint: err?.hint });
+    iamAlert(iamErrorMessage(err, 'Rejection failed. Please try again.'));
+  }
 }
 
 export async function iamSuspendUser(userId) {
@@ -316,9 +335,14 @@ export async function iamAssignFacility(userId) {
   if (!facilityId) return iamAlert('Select a facility before assigning this user.');
   const reason = promptReason('change this facility assignment');
   if (!reason) return iamAlert('Facility change reason is required.');
-  const { error } = await assignUserFacilitySecure(userId, facilityId, reason);
-  if (error) return iamAlert(error.message);
-  await refreshIamPanel();
+  try {
+    const { error } = await assignUserFacilitySecure(userId, facilityId, reason);
+    if (error) throw error;
+    iamAlert('Facility assignment saved.', 'alert-s');
+    await refreshIamPanel();
+  } catch (err) {
+    iamAlert(iamErrorMessage(err, 'Facility assignment failed. Please try again.'));
+  }
 }
 
 export async function iamChangeRole(userId) {
@@ -326,9 +350,14 @@ export async function iamChangeRole(userId) {
   if (!IAM_ROLES.includes(role)) return iamAlert('Select a valid canonical role.');
   const reason = promptReason('change this user role');
   if (!reason) return iamAlert('Role change reason is required.');
-  const { error } = await changeUserRoleSecure(userId, role, reason);
-  if (error) return iamAlert(error.message);
-  await refreshIamPanel();
+  try {
+    const { error } = await changeUserRoleSecure(userId, role, reason);
+    if (error) throw error;
+    iamAlert('Role updated successfully.', 'alert-s');
+    await refreshIamPanel();
+  } catch (err) {
+    iamAlert(iamErrorMessage(err, 'Role update failed. Please try again.'));
+  }
 }
 
 export function exportJSON() {

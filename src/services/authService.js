@@ -14,6 +14,23 @@ export { hasPerm } from "./rbac.js";
 let authMode = 'login';
 let dashboardPageHTML = null;
 
+function authErrorMessage(err, fallback) {
+  const message = err?.message || fallback;
+  if (/invalid login credentials/i.test(message)) {
+    return 'Email or password is incorrect, or the account has not been confirmed yet.';
+  }
+  if (/email.*not.*confirm|confirm.*email/i.test(message)) {
+    return 'Please confirm your email address before signing in.';
+  }
+  if (/user already registered|already.*registered/i.test(message)) {
+    return 'An account with this email already exists. Sign in or reset your password.';
+  }
+  if (/password/i.test(message) && /six|6|weak|short/i.test(message)) {
+    return 'Use a stronger password with at least 6 characters.';
+  }
+  return message || fallback;
+}
+
 function setSubmitLoading(loading) {
   const btn = document.getElementById('auth-submit-btn');
   const btnText = document.getElementById('auth-btn-text');
@@ -202,23 +219,36 @@ export async function register(e) {
       return;
     }
 
-    const metadata = { full_name: fullName, phone };
-    if (chpCode) metadata.chp_code_requested = chpCode;
-
-    const { error } = await sb.auth.signUp({
+    const signUpPayload = {
       email,
       password,
       options: {
-        data: metadata,
+        data: {
+          full_name: fullName,
+          phone,
+          chp_code_requested: chpCode || null,
+        },
         emailRedirectTo: location.origin + location.pathname,
       },
-    });
+    };
+
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || sessionStorage.getItem('ochp_debug_signup') === '1') {
+      console.debug('[OCHP signup] email type', typeof email);
+      console.debug('[OCHP signup] email value', email);
+      console.debug('[OCHP signup] payload', {
+        ...signUpPayload,
+        password: '[redacted]',
+      });
+    }
+
+    const { error } = await sb.auth.signUp(signUpPayload);
     if (error) throw error;
 
     setAuthMode('login');
     authAlert('Registration submitted. Your account is awaiting Super Admin approval before system access is enabled.', 'alert-s');
   } catch (err) {
-    authAlert(err.message || 'Registration failed');
+    console.warn('Registration failed', { code: err?.code, status: err?.status, name: err?.name });
+    authAlert(authErrorMessage(err, 'Registration failed. Please check your details and try again.'));
   } finally {
     setSubmitLoading(false);
   }
@@ -255,7 +285,8 @@ export async function login(e) {
       console.warn('Login audit failed', auditErr);
     }
   } catch (err) {
-    authAlert(err.message || 'Login failed');
+    console.warn('Login failed', { code: err?.code, status: err?.status, name: err?.name });
+    authAlert(authErrorMessage(err, 'Login failed. Please check your credentials and try again.'));
     if (btn && btnText && spinner) {
       btn.disabled = false;
       btnText.style.display = "inline-flex";
@@ -286,7 +317,7 @@ export async function resetPassword() {
     if (error) throw error;
     authAlert('Password reset email sent.', 'alert-s');
   } catch (err) {
-    authAlert(err.message || 'Password reset failed');
+    authAlert(authErrorMessage(err, 'Password reset failed. Please try again.'));
   } finally {
     if (resetBtn) {
       resetBtn.disabled = false;
@@ -304,6 +335,7 @@ export async function logout() {
   setSubmitLoading(false);
   showAuth(false);
 }
+
 
 
 
