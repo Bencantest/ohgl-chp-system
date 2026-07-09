@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "OHGL CHP Referral System"
+version = "1.0.0"
+id = "artifacts/chp-system"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22624
+
+[services.development]
+run = "pnpm --filter @workspace/chp-system run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/chp-system", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/chp-system/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22624"
+BASE_PATH = "/"
