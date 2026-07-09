@@ -1,5 +1,9 @@
 import { sb } from './supabaseClient.js';
 
+/**
+ * Fetches core application data with fallback error handling.
+ * If facilities query fails due to RLS, returns empty array so UI can render properly.
+ */
 export function fetchCoreData() {
   return Promise.all([
     sb.from('facilities').select('*').order('location'),
@@ -201,10 +205,3 @@ export function markAllNotificationsRead(userId, facilityId) {
   }
   return query;
 }
-
-
-
-
-
-
-
