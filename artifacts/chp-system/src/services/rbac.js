@@ -1,0 +1,60 @@
+import { ROLE_PERMS, ROLE_LABELS } from '../constants/appConstants.js';
+import { currentProfile } from './state.js';
+import { h } from '../utils/sanitize.js';
+
+export const ROLE_ALIASES = {};
+
+export const PAGE_ACCESS = {
+  dashboard: ['super_admin', 'facility_manager', 'facility_officer', 'clinician', 'receptionist', 'monitor', 'chp'],
+  new_referral: ['super_admin', 'facility_manager', 'facility_officer', 'chp'],
+  my_referrals: ['super_admin', 'facility_manager', 'facility_officer', 'clinician', 'receptionist', 'chp'],
+  tracker: ['super_admin', 'facility_manager', 'facility_officer', 'clinician', 'receptionist', 'monitor'],
+  directory: ['super_admin', 'facility_manager'],
+  report: ['super_admin', 'facility_manager', 'facility_officer'],
+  group: ['super_admin', 'monitor'],
+  settings: ['super_admin', 'facility_manager'],
+  audit: ['super_admin'],
+};
+
+export const NAV_ITEMS = Object.keys(PAGE_ACCESS);
+
+export function normalizeRole(role) {
+  return ROLE_ALIASES[role] || role || '';
+}
+
+export function getRoleLabel(role) {
+  return ROLE_LABELS[normalizeRole(role)] || normalizeRole(role) || 'Unknown';
+}
+
+export function hasPerm(perm, profile = currentProfile) {
+  const perms = ROLE_PERMS[normalizeRole(profile?.role)] || [];
+  return perms.includes('*') || perms.includes(perm) || perms.some(p => p.endsWith(':*') && perm.startsWith(p.slice(0, -1)));
+}
+
+export function canAccessPage(pageId, profile = currentProfile) {
+  const role = normalizeRole(profile?.role);
+  if (!role) return false;
+  const allowedRoles = PAGE_ACCESS[pageId] || [];
+  return allowedRoles.includes(role) || hasPerm('*', profile);
+}
+
+export function getAllowedPages(profile = currentProfile) {
+  return NAV_ITEMS.filter(pageId => canAccessPage(pageId, profile));
+}
+
+export function getDefaultPage(profile = currentProfile) {
+  const priority = ['new_referral', 'my_referrals', 'tracker', 'dashboard', 'group', 'directory', 'report', 'settings', 'audit'];
+  return priority.find(pageId => canAccessPage(pageId, profile)) || null;
+}
+
+export function renderAccessDenied(targetId, message = 'You do not have access to this page.') {
+  const el = document.getElementById(targetId);
+  if (!el) return;
+  el.innerHTML = '<div class="alert alert-e"><i class="ti ti-lock"></i> ' + h(message) + '</div>';
+}
+
+export function ensurePageAccess(pageId, targetId, message) {
+  if (canAccessPage(pageId)) return true;
+  renderAccessDenied(targetId, message);
+  return false;
+}
