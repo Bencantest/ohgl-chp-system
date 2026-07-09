@@ -24,12 +24,6 @@ function setVal(id, value) {
   if (el) el.value = value;
 }
 
-function makeReferralNumber(f) {
-  const year = new Date().getFullYear();
-  const sameYear = (f.referrals || []).filter(r => String(r.id || '').startsWith(`OHGL-${year}-`)).length;
-  return `OHGL-${year}-${String(sameYear + 1).padStart(6, '0')}`;
-}
-
 function validateReferral(form, f) {
   const errors = [];
   const required = [
@@ -67,15 +61,19 @@ export function initSlip() {
   const f = fac();
   if (!f) return;
   document.getElementById('slip-hdr-r').innerHTML = f.location + ' - ' + f.name + '<br>' + (f.email || '');
-  document.getElementById('slip-no-display').textContent = makeReferralNumber(f);
+  document.getElementById('slip-no-display').textContent = 'OHGL-XXXX-XXXXXX (Generated server-side)';
   if (!val('f-date')) document.getElementById('f-date').valueAsDate = new Date();
 
   const facSel = document.getElementById('f-dest-facility');
   if (facSel) {
     const selected = facSel.value || f.id;
-    facSel.innerHTML = (DB.facilities || [])
-      .map(x => `<option value="${x.id}" ${x.id === selected ? 'selected' : ''}>${x.location} - ${x.name}</option>`)
-      .join('');
+    if ((DB.facilities || []).length === 0) {
+      facSel.innerHTML = '<option value="">No facilities available. Contact admin.</option>';
+    } else {
+      facSel.innerHTML = (DB.facilities || [])
+        .map(x => `<option value="${x.id}" ${x.id === selected ? 'selected' : ''}>${x.location} - ${x.name}</option>`)
+        .join('');
+    }
   }
 }
 
@@ -130,37 +128,12 @@ export async function submitReferral() {
   }
 
   if (!f.referrals) f.referrals = [];
-  const referralNo = makeReferralNumber(f);
   const selectedFacility = (DB.facilities || []).find(x => x.id === form.facilityId) || f;
-  const slip = {
-    id: referralNo,
-    facility_id: form.facilityId,
-    date: form.date,
-    patient: form.patient,
-    national_id: form.nationalId,
-    phone: form.phone,
-    sex: form.gender,
-    age: form.age,
-    county: form.county,
-    subcounty: form.subCounty,
-    village: form.village,
-    complaint: form.complaint,
-    referral_reason: form.reason,
-    notes: form.notes,
-    referral_facility: selectedFacility.name,
-    referral_facility_id: form.facilityId,
-    department: form.department,
-    workflow_status: 'Submitted',
-    status: 'Submitted',
-    created_by: currentProfile?.id,
-    created_by_name: currentProfile?.full_name || '',
-    timeline: [{ status: 'Submitted', at: new Date().toISOString(), by: currentProfile?.full_name || 'Current user' }],
-    created: new Date().toISOString(),
-  };
-
+  
+  // Build payload for server-side slip_no generation
+  // IMPORTANT: Do NOT include slip_no - let the backend generate it via next_referral_number()
   const payload = {
     facility_id: form.facilityId,
-    slip_no: referralNo,
     referral_date: form.date,
     patient_name: form.patient,
     national_id: form.nationalId,
@@ -185,13 +158,40 @@ export async function submitReferral() {
     return;
   }
 
+  // Use server-generated slip_no from response
+  const serverGeneratedSlipNo = data.slip_no || 'OHGL-XXXX-XXXXXX';
+  
   // Future-Ready Integration Sync (non-blocking)
-  integrations.syncToSHA(payload).catch(err => console.error('[SHA Sync Error]', err));
-  messaging.send('sms', payload.phone, `Oasis Health: Referral ${data.slip_no || referralNo} has been successfully submitted to ${payload.referral_facility_name}.`).catch(err => console.error('[SMS Sync Error]', err));
+  integrations.syncToSHA({ ...payload, slip_no: serverGeneratedSlipNo }).catch(err => console.error('[SHA Sync Error]', err));
+  messaging.send('sms', payload.phone, `Oasis Health: Referral ${serverGeneratedSlipNo} has been successfully submitted to ${payload.referral_facility_name}.`).catch(err => console.error('[SMS Error]', err));
 
+  const slip = {
+    id: serverGeneratedSlipNo,
+    db_id: data.id,
+    facility_id: form.facilityId,
+    date: form.date,
+    patient: form.patient,
+    national_id: form.nationalId,
+    phone: form.phone,
+    sex: form.gender,
+    age: form.age,
+    county: form.county,
+    subcounty: form.subCounty,
+    village: form.village,
+    complaint: form.complaint,
+    referral_reason: form.reason,
+    notes: form.notes,
+    referral_facility: selectedFacility.name,
+    referral_facility_id: form.facilityId,
+    department: form.department,
+    workflow_status: 'Submitted',
+    status: 'Submitted',
+    created_by: currentProfile?.id,
+    created_by_name: currentProfile?.full_name || '',
+    timeline: [{ status: 'Submitted', at: new Date().toISOString(), by: currentProfile?.full_name || 'Current user' }],
+    created: new Date().toISOString(),
+  };
 
-  slip.db_id = data.id;
-  slip.id = data.slip_no || referralNo;
   f.referrals.push(slip);
   await audit('create', 'referrals', data.id, { slip_no: slip.id });
   clearSlipForm();
